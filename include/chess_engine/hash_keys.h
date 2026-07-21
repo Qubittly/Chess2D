@@ -15,8 +15,6 @@
 #define HASH_KEYS_H
 
 #include <cstdint>
-#include <cstdlib>
-#include <random>
 #include <array>
 
 namespace Chess {

@@ -2,8 +2,11 @@
 #include "board_state.h"
 #include "board_renderer.h"
 #include "move_generator.h"
+#include "pieces.h"
+
 #include <cmath>
 #include <iostream>
+#include <array>
 
 namespace Chess {
     Board::Board(int length) : boardRenderer(nullptr) {

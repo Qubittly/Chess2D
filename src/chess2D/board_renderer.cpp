@@ -1,7 +1,8 @@
 #include "board_renderer.h"
-
 #include "board_state.h"
 #include "board_rep.h"
+#include "pieces.h"
+
 #include <iostream>
 #include <algorithm>
 

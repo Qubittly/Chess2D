@@ -2,11 +2,8 @@
 #define MOVE_GENERATOR_H
 
 #include <array>
-#include "precomp_move_data.h"
-#include "board_rep.h"
 #include "board_state.h"
 #include "move.h"
-#include "pieces.h"
 
 namespace Chess {
     /**

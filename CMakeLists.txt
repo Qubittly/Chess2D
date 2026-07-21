@@ -1,37 +1,32 @@
 # CMakeList.txt : Top-level CMake project file, do global configuration
 # and include sub-projects here.
 #
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.20)
 
-# Enable Hot Reload for MSVC compilers if supported.
-if (POLICY CMP0141)
-  cmake_policy(SET CMP0141 NEW)
-  set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
-endif()
+project ("DeepLearningCPP")
+
+set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT Embedded)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project ("Chess2D")
 
-option(CHESS2D_ENABLE_CLAY_UI "Build Clay UI test target and fetch Clay" OFF)
 option(CHESS2D_ENABLE_TRACY "Enable Tracy instrumentation" ON)
 
 if (CHESS2D_ENABLE_TRACY)
-  include(FetchContent)
-  FetchContent_Declare(tracy
-    GIT_REPOSITORY https://github.com/wolfpld/tracy.git
-    GIT_TAG v0.13.1
-  )
-  FetchContent_MakeAvailable(tracy)
-
-  if (TARGET TracyClient AND NOT TARGET Tracy::TracyClient)
-    add_library(Tracy::TracyClient ALIAS TracyClient)
-  endif()
-
-  if (NOT TARGET Tracy::TracyClient)
-    message(WARNING "Tracy requested but Tracy client target was not created. Build will continue without Tracy instrumentation.")
-    set(CHESS2D_ENABLE_TRACY OFF)
-  endif()
+  find_package(Tracy CONFIG REQUIRED)
 endif()
+
+enable_testing()
 
 # Include sub-projects.
 add_subdirectory ("src")
 add_subdirectory ("tests")
+
+# Copy compile_commands.json to build root for clangd
+add_custom_target(copy_compile_commands ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_BINARY_DIR}/compile_commands.json
+        ${CMAKE_SOURCE_DIR}/out/build/compile_commands.json
+    COMMENT "Copying compile_commands.json to build root"
+)

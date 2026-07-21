@@ -1,8 +1,25 @@
 {
-    "version": 3,
+    "version": 6,
     "configurePresets": [
         {
             "name": "windows-base",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "installDir": "${sourceDir}/install/${presetName}",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "C:/Program Files/LLVM/bin/clang-cl.exe",
+                "CMAKE_CXX_COMPILER": "C:/Program Files/LLVM/bin/clang-cl.exe",
+                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "msvc-base",
             "hidden": true,
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/build/${presetName}",
@@ -20,7 +37,7 @@
         },
         {
             "name": "x64-debug",
-            "displayName": "x64 Debug",
+            "displayName": "x64 Debug (Clang)",
             "inherits": "windows-base",
             "architecture": {
                 "value": "x64",
@@ -32,7 +49,7 @@
         },
         {
             "name": "x64-release",
-            "displayName": "x64 Release",
+            "displayName": "x64 Release (Clang)",
             "inherits": "x64-debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
@@ -40,7 +57,7 @@
         },
         {
             "name": "x86-debug",
-            "displayName": "x86 Debug",
+            "displayName": "x86 Debug (Clang)",
             "inherits": "windows-base",
             "architecture": {
                 "value": "x86",
@@ -52,11 +69,31 @@
         },
         {
             "name": "x86-release",
-            "displayName": "x86 Release",
+            "displayName": "x86 Release (Clang)",
             "inherits": "x86-debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
             }
+        },
+        {
+            "name": "x64-debug-msvc",
+            "displayName": "x64 Debug (MSVC)",
+            "inherits": "msvc-base"
+        },
+        {
+            "name": "x64-release-msvc",
+            "displayName": "x64 Release (MSVC)",
+            "inherits": "x64-debug-msvc"
+        },
+        {
+            "name": "x86-debug-msvc",
+            "displayName": "x86 Debug (MSVC)",
+            "inherits": "msvc-base"
+        },
+        {
+            "name": "x86-release-msvc",
+            "displayName": "x86 Release (MSVC)",
+            "inherits": "x86-debug-msvc"
         },
         {
             "name": "linux-debug",
@@ -102,6 +139,28 @@
                     "sourceDir": "$env{HOME}/.vs/$ms{projectDirName}"
                 }
             }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "x64-debug-msvc",
+            "configurePreset": "x64-debug-msvc",
+            "configuration": "Debug"
+        },
+        {
+            "name": "x64-release-msvc",
+            "configurePreset": "x64-release-msvc",
+            "configuration": "Release"
+        },
+        {
+            "name": "x86-debug-msvc",
+            "configurePreset": "x86-debug-msvc",
+            "configuration": "Debug"
+        },
+        {
+            "name": "x86-release-msvc",
+            "configurePreset": "x86-release-msvc",
+            "configuration": "Release"
         }
     ]
 }

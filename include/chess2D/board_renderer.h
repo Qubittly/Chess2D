@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "move.h"
-#include "pieces.h"
+
 
 namespace Chess{
     // Forward declarations

@@ -1,9 +1,6 @@
 /*
  * Bitboard Utilities
  * 
- * This header provides efficient bitboard operations for chess.
- * A bitboard is a 64-bit unsigned integer where each bit represents a square on the chess board.
- * 
  * Bitboard Layout (standard orientation):
  *   Rank 7 (Black's back rank): bits 56-63
  *   Rank 6: bits 48-55
@@ -26,44 +23,39 @@
 #define BITBOARD_UTILS_H
 
 #include <cstdint>
-#include <bit>
+
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
 
 namespace Chess {
 
-    /*
-     * Count the number of set bits (population count)
-     * 
-     * @param bb The bitboard to analyze
-     * @return The number of '1' bits in the bitboard
-     * 
-     * Use case: Count how many pieces of a type are on the board
-     * Time complexity: O(1) - hardware instruction
-     * 
-     * Example:
-     *   uint64_t pawns = 0x000000000000FF00ULL;  // 8 white pawns
-     *   int count = popCount(pawns);             // Returns 8
-     */
     inline int popCount(uint64_t bb) {
-        return std::popcount(bb);
+        #if defined(_MSC_VER)
+                return static_cast<int>(__popcnt64(bb));
+        #elif defined(__GNUC__) || defined(__clang__)
+                return __builtin_popcountll(bb);
+        #else
+                int count = 0;
+                while (bb) { bb &= bb - 1; ++count; }
+                return count;
+        #endif
     }
 
-    /*
-     * Get the position of the Least Significant Bit (LSB)
-     * 
-     * @param bb The bitboard to analyze
-     * @return The bit position (0-63) of the first '1' bit, or 64 if empty
-     * 
-     * Use case: Find the first piece on a bitboard
-     * Time complexity: O(1) - hardware instruction
-     * 
-     * Example:
-     *   uint64_t bb = 0x0000000000000100ULL;  // Only bit 8 set
-     *   int square = getLSB(bb);              // Returns 8
-     * 
-     * Note: This is the first step in bitboard iteration
-     */
     inline int getLSB(uint64_t bb) {
-        return std::countr_zero(bb);
+        #if defined(_MSC_VER)
+                if (bb == 0) return 64;
+                unsigned long index;
+                _BitScanForward64(&index, bb);
+                return static_cast<int>(index);
+        #elif defined(__GNUC__) || defined(__clang__)
+                return __builtin_ctzll(bb);
+        #else
+                if (bb == 0) return 64;
+                int count = 0;
+                while ((bb & 1) == 0) { bb >>= 1; ++count; }
+                return count;
+        #endif
     }
 
     /*

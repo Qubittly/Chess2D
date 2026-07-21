@@ -17,6 +17,8 @@ add_executable(Chess2D ${CHESS2D_SOURCES})
 set_property(TARGET Chess2D PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 set_property(TARGET Chess2D PROPERTY CXX_STANDARD 20)
+set_property(TARGET Chess2D PROPERTY CXX_STANDARD_REQUIRED ON)
+set_property(TARGET Chess2D PROPERTY CXX_EXTENSIONS OFF)
 
 target_include_directories(Chess2D PRIVATE
     "${CMAKE_SOURCE_DIR}/include"

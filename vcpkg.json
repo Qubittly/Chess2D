@@ -12,6 +12,8 @@
       ]
     },
     "sdl3-ttf",
-    "spdlog"
+    "spdlog",
+    "clay",
+    "tracy"
   ]
 }

@@ -1,6 +1,9 @@
 #include "board_state.h"
+#include "bitboard_util.h"
 #include "fen_util.h"
 #include "logger.h"
+
+#include <iostream>
 
 namespace Chess {
 

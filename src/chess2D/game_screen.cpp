@@ -243,7 +243,7 @@ namespace Chess {
             std::cout << "[Game] Checkmate! " << winner << " wins!\n";
         }
         else if (board.isStaleMate(active)) {
-            std::cout << "[Game] Stalemate – the game is a draw.\n";
+            std::cout << "[Game] Stalemate: the game is a draw.\n";
         }
     }
 

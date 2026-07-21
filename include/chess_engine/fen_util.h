@@ -2,14 +2,12 @@
 #define FEN_UTIL_H
 
 #include "pieces.h"
-#include "bitboard_util.h"
 #include "board_rep.h"
 #include "board_state.h"
 
 #include <cctype>
 #include <sstream>
 #include <string>
-#include <string_view>
 
 namespace Chess {
     inline void loadFENUtil(BoardState& board, const std::string& fen) {

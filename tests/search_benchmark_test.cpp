@@ -2,6 +2,7 @@
 #include "board_state.h"
 #include "move_generator.h"
 #include "precomp_move_data.h"
+#include "magics.h"
 #include "profiler.h"
 #include "logger.h"
 
@@ -65,6 +66,7 @@ int main(int argc, char** argv) {
     using namespace Chess;
 
     PrecomputedMoveData::initialize();
+    initialize_magics();
 
 #ifdef CHESS2D_SOURCE_DIR
     std::error_code ec;
@@ -72,12 +74,12 @@ int main(int argc, char** argv) {
 #endif
 
     if (!ChessLog::isInitialized()) {
-        ChessLog::init("logs", spdlog::level::debug);
+        ChessLog::init("logs", spdlog::level::debug, true);
     }
 
-    int maxPositions = 25;
-    int depth = 7;
-    int timeMs = 8000;
+    int maxPositions = 10;
+    int depth = 4;
+    int timeMs = 5000;
 
     if (argc > 1) maxPositions = std::max(1, std::atoi(argv[1]));
     if (argc > 2) depth = std::max(1, std::atoi(argv[2]));

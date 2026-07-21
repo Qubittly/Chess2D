@@ -81,21 +81,21 @@ int main(int argc, char* argv[]) {
         Clay_SetLayoutDimensions(Clay_Dimensions{ 800.0f, 600.0f });
         Clay_BeginLayout();
 
-        CLAY(CLAY_ID("Root"),
-            {
-                .layout = {
-                    .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
-                    .padding = { 16, 16, 16, 16 },
-                    .childGap = 8,
-                    .layoutDirection = CLAY_TOP_TO_BOTTOM
-                },
-                .backgroundColor = { 30, 30, 30, 255 }
-            }) {
+        CLAY({
+            .id = CLAY_ID("Root"),
+            .layout = {
+                .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0) },
+                .padding = { 16, 16, 16, 16 },
+                .childGap = 8,
+                .layoutDirection = CLAY_TOP_TO_BOTTOM
+            },
+            .backgroundColor = { 30, 30, 30, 255 }
+        }) {
             CLAY_TEXT(CLAY_STRING("Clay UI Test"), CLAY_TEXT_CONFIG({ .userData = nullptr, .textColor = { 255, 255, 255, 255 }, .fontId = 0, .fontSize = 18 }));
             CLAY_TEXT(CLAY_STRING("Running layout frame..."), CLAY_TEXT_CONFIG({ .userData = nullptr, .textColor = { 200, 200, 200, 255 }, .fontId = 0, .fontSize = 14 }));
         }
 
-        Clay_RenderCommandArray commands = Clay_EndLayout(1.0f / 60.0f);
+        Clay_RenderCommandArray commands = Clay_EndLayout();
 
         // Frame complete
         frame_count++;

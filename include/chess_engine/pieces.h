@@ -1,8 +1,6 @@
 #ifndef PIECE_CONST_H
 #define PIECE_CONST_H
 
-#include <cstdint>
-#include <algorithm>
 #include <array>
 
 namespace Chess {

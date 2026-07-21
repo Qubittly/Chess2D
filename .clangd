@@ -1,0 +1,11 @@
+CompileFlags:
+  CompilationDatabase: out/build/
+  Add:
+    - "-std=c++20"
+    - "-Iinclude"
+    - "-Iinclude/chess_engine"
+    - "-Iinclude/chess2D"
+    - "-Iinclude/search"
+    - "-Iutils/include"
+    - "-fms-extensions"
+    - "-DTRACY_ENABLE"

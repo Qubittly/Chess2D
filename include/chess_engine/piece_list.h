@@ -10,7 +10,6 @@
 #define PIECE_LIST_H
 
 #include <vector>
-#include <algorithm>
 
 namespace Chess {
 

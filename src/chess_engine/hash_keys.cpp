@@ -1,4 +1,6 @@
 #include "hash_keys.h"
+#include <cstdlib>
+#include <random>
 
 namespace Chess {
 

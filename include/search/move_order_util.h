@@ -3,9 +3,7 @@
 
 #include <algorithm>
 #include <array>
-#include <cstdlib>
 #include <cstdint>
-#include <limits>
 #include <utility>
 #include <vector>
 
@@ -14,7 +12,7 @@
 #include "magics.h"
 #include "pieces.h"
 #include "precomp_move_data.h"
-#include "evaluation.h"
+#include "bitboard_util.h"
 
 namespace Chess {
     class MoveOrderUtil {

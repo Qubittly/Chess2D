@@ -2,6 +2,7 @@
 #include "move_generator.h"
 #include "board_state.h"
 #include "precomp_move_data.h"
+#include "magics.h"
 #include "chess2D/board.h"
 #include "logger.h"
 #include <SDL3/SDL.h>
@@ -219,6 +220,7 @@ int main(int argc, char** argv) {
     using namespace Chess;
 
     PrecomputedMoveData::initialize();
+    initialize_magics();
 
 #ifdef CHESS2D_SOURCE_DIR
     std::error_code ec;

@@ -4,10 +4,11 @@
 #include <SDL3/SDL.h>
 #include <vector>
 #include <string>
-#include <iostream>
+
 
 #include "board.h"
 #include "search.h"
+#include "input.h"
 
 namespace Chess  {
     class GameWindow {

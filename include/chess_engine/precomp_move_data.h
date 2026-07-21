@@ -1,11 +1,9 @@
 #ifndef PRECOMPUTED_MOVE_DATA_H
 #define PRECOMPUTED_MOVE_DATA_H
 
-#include <iostream>
 #include <cstdint>
 #include <array>
 #include <vector>
-#include <algorithm>
 
 
 namespace Chess

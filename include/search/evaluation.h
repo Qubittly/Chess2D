@@ -10,6 +10,7 @@
 #include "board_state.h"
 #include "precomp_move_data.h"
 #include "logger.h"
+#include "bitboard_util.h"
 
 namespace Chess {
 

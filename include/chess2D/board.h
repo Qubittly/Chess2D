@@ -4,17 +4,12 @@
 #include <SDL3/SDL.h>
 #include <string>
 #include <vector>
-#include <array>
-#include <cstdint>
-#include <memory>
 
 #include "board_renderer.h"     
 #include "board_state.h"  
 #include "move_generator.h"
 
-#include "input.h"
 #include "move.h"
-#include "pieces.h"
 
 namespace Chess {
 

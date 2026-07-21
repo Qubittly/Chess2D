@@ -2,17 +2,13 @@
 #define BOARD_STATE_H
 
 #include "pieces.h"
-#include "bitboard_util.h"
 #include "board_rep.h"
 #include "move.h"
 #include "piece_list.h"
 #include "hash_keys.h"
 
-#include <algorithm>
 #include <array>
-#include <bit>
 #include <cstdint>
-#include <iostream>
 #include <vector>
 #include <string>
 

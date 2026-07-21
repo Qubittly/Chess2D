@@ -1,6 +1,7 @@
 #include "evaluation.h"
 #include "board_state.h"
 #include "precomp_move_data.h"
+#include "magics.h"
 
 #include <iostream>
 #include <string>
@@ -71,6 +72,7 @@ int main() {
     using namespace Chess;
 
     PrecomputedMoveData::initialize();
+    initialize_magics();
 
     bool ok = true;
 

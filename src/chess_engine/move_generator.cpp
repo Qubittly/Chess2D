@@ -2,7 +2,9 @@
 #include "profiler.h"
 #include "magics.h"
 #include "bitboard_util.h"
-
+#include "pieces.h"
+#include "precomp_move_data.h"
+#include "board_rep.h"
 namespace Chess {
 
     void MoveGenerator::init() {
