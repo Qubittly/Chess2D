@@ -7,5 +7,4 @@
 #include <tracy/Tracy.hpp>
 #endif
 
-
-#endif // PROFILER_H
+#endif  // PROFILER_H

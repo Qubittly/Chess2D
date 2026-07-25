@@ -1,21 +1,23 @@
 #ifndef THREAD_POOL_H
 #define THREAD_POOL_H
-#include <thread>
-#include <vector>
-#include <queue>
+#include <atomic>
+#include <condition_variable>
 #include <functional>
 #include <future>
-#include <condition_variable>
 #include <memory>
-#include <atomic>
+#include <queue>
+#include <thread>
+#include <vector>
+
 #include "logger.h"
+
 
 struct TaskQueue {
     std::queue<std::function<void()>> tasks;
     std::mutex mutex;
     std::condition_variable cv;
-    std::atomic<int> taskCount{0};
-    std::atomic<bool> shutdown{false};
+    std::atomic<int> taskCount{ 0 };
+    std::atomic<bool> shutdown{ false };
 
     void addTask(std::function<void()> task) {
         {
@@ -29,11 +31,11 @@ struct TaskQueue {
     bool getTask(std::function<void()>& task) {
         std::unique_lock<std::mutex> lock(mutex);
         cv.wait(lock, [this] { return !tasks.empty() || shutdown; });
-        
+
         if (shutdown && tasks.empty()) {
             return false;
         }
-        
+
         if (!tasks.empty()) {
             task = std::move(tasks.front());
             tasks.pop();
@@ -55,7 +57,7 @@ struct TaskQueue {
     }
 };
 
-struct Thread{
+struct Thread {
     int id;
     std::thread cur_thread;
     std::function<void()> task;
@@ -65,12 +67,12 @@ struct Thread{
         cur_thread = std::thread([this]() { run(); });
     }
 
-    void run(){
-        while(true){
+    void run() {
+        while (true) {
             if (!taskQueue->getTask(task)) {
                 break;
             }
-            if(task){ 
+            if (task) {
                 try {
                     task();
                 } catch (const std::exception& e) {
@@ -83,8 +85,8 @@ struct Thread{
         }
     }
 
-    void stop(){
-        if(cur_thread.joinable()){
+    void stop() {
+        if (cur_thread.joinable()) {
             cur_thread.join();
         }
     }
@@ -95,28 +97,26 @@ private:
     TaskQueue taskQueue;
     std::vector<Thread> threads;
     int numThreads;
-    std::atomic<bool> destroyed{false};
+    std::atomic<bool> destroyed{ false };
 
 public:
     ThreadPool(int n = std::thread::hardware_concurrency()) : numThreads(n) {
         if (n <= 0) {
             throw std::invalid_argument("Thread count must be positive");
         }
-        
+
         threads.reserve(numThreads);
-        for(int i = 0; i < numThreads; ++i){
+        for (int i = 0; i < numThreads; ++i) {
             threads.emplace_back(i, &taskQueue);
         }
     }
 
-    ~ThreadPool(){
-        shutdown();
-    }
+    ~ThreadPool() { shutdown(); }
 
     void shutdown() {
         if (!destroyed.exchange(true)) {
             taskQueue.requestShutdown();
-            for(auto& thread : threads){
+            for (auto& thread : threads) {
                 thread.stop();
             }
         }
@@ -128,11 +128,9 @@ public:
         if (destroyed.load()) {
             throw std::runtime_error("Cannot enqueue tasks on destroyed thread pool");
         }
-        
+
         using ReturnType = decltype(f(args...));
-        auto task = std::make_shared<std::packaged_task<ReturnType()>>(
-            std::bind(std::forward<Func>(f), std::forward<Args>(args)...)
-        );
+        auto task = std::make_shared<std::packaged_task<ReturnType()>>(std::bind(std::forward<Func>(f), std::forward<Args>(args)...));
         std::future<ReturnType> res = task->get_future();
         taskQueue.addTask([task]() { (*task)(); });
         return res;
@@ -140,14 +138,14 @@ public:
 
     void parallelFor(int start, int end, std::function<void(int)> func) {
         if (start >= end) return;
-        
+
         std::vector<std::future<void>> futures;
         futures.reserve(end - start);
-        
+
         for (int i = start; i < end; ++i) {
             futures.push_back(enqueue(func, i));
         }
-        
+
         // Wait for all tasks to complete
         for (auto& future : futures) {
             future.wait();
@@ -158,4 +156,4 @@ public:
     size_t getPendingTaskCount() const { return taskQueue.taskCount.load(); }
 };
 
-#endif // THREAD_POOL_H
+#endif  // THREAD_POOL_H

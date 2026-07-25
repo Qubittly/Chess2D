@@ -2,199 +2,200 @@
 #define MOVE_GENERATOR_H
 
 #include <array>
+
 #include "board_state.h"
 #include "move.h"
 
+
 namespace Chess {
+/**
+ * @class MoveGenerator
+ * @brief Generates legal chess moves for a given position
+ *
+ * This class implements a legal move generator with the following features:
+ * - Direct legal move generation (check/pin constrained)
+ * - Check and pin detection
+ * - Double-check handling (king moves only)
+ * - Quiescence search support (capture-only moves)
+ * - Debug mode for capturing generated move snapshots
+ *
+ * Usage:
+ *   MoveGenerator gen;
+ *   gen.init();
+ *   gen.debugTrackPseudoLegal = true;  // Optional: snapshot generated moves
+ *   gen.generateLegalMoves(board, true);
+ *   for (int i = 0; i < gen.getLegalMoveCount(); ++i) {
+ *       Move m = gen.moveList[i];
+ *   }
+ */
+class MoveGenerator {
+public:
+    std::array<Move, 256> moveList{};
+    int moveCount = 0;
+
+    // Debug: Store pseudo-legal moves for analysis
+    std::array<Move, 256> pseudoLegalMoves{};
+    int pseudoLegalCount = 0;
+    bool debugTrackPseudoLegal = false;
+
+    MoveGenerator() = default;
+
     /**
-     * @class MoveGenerator
-     * @brief Generates legal chess moves for a given position
-     * 
-     * This class implements a legal move generator with the following features:
-     * - Direct legal move generation (check/pin constrained)
-     * - Check and pin detection
-     * - Double-check handling (king moves only)
-     * - Quiescence search support (capture-only moves)
-     * - Debug mode for capturing generated move snapshots
-     * 
-     * Usage:
-     *   MoveGenerator gen;
-     *   gen.init();
-     *   gen.debugTrackPseudoLegal = true;  // Optional: snapshot generated moves
-     *   gen.generateLegalMoves(board, true);
-     *   for (int i = 0; i < gen.getLegalMoveCount(); ++i) {
-     *       Move m = gen.moveList[i];
-     *   }
+     * Initialize the move generator
+     * Must be called once before generating any moves
      */
-    class MoveGenerator {
-    public:
-        std::array<Move, 256> moveList{};
-        int moveCount = 0;
+    void init();
 
-        // Debug: Store pseudo-legal moves for analysis
-        std::array<Move, 256> pseudoLegalMoves{};
-        int pseudoLegalCount = 0;
-        bool debugTrackPseudoLegal = false;
+    /**
+     * Generate all legal moves for the current position
+     *
+     * @param board The chess position to generate moves from (will be modified to store attack tables)
+     * @param genQuiet If true, generate quiet moves; if false, only captures
+     *
+     * This function:
+     * 1. Sets up position state and calculates attack/check/pin data
+     * 2. Generates legal moves directly using check/pin constraints
+     * 3. Updates attack tables in the board state for evaluation use
+     * 4. Optionally stores generated moves for debugging
+     */
+    void generateLegalMoves(BoardState& board, bool genQuiet);
 
-        MoveGenerator() = default;
+    /**
+     * Generate legal moves using precomputed check/pin constraints.
+     *
+     * @param board The chess position
+     * @param genQuiet If true, generate quiet moves; if false, only captures
+     */
+    void generateLegalMovesConstrained(const BoardState& board, bool genQuiet);
 
-        /**
-         * Initialize the move generator
-         * Must be called once before generating any moves
-         */
-        void init();
+    std::vector<Move> getPieceMoves(int square, const BoardState* boardState);
 
-        /**
-         * Generate all legal moves for the current position
-         * 
-         * @param board The chess position to generate moves from (will be modified to store attack tables)
-         * @param genQuiet If true, generate quiet moves; if false, only captures
-         * 
-         * This function:
-         * 1. Sets up position state and calculates attack/check/pin data
-         * 2. Generates legal moves directly using check/pin constraints
-         * 3. Updates attack tables in the board state for evaluation use
-         * 4. Optionally stores generated moves for debugging
-         */
-        void generateLegalMoves(BoardState& board, bool genQuiet);
+    /**
+     * Add a move to the move list (with bounds checking)
+     */
+    void addMove(const Move& move);
 
-        /**
-         * Generate legal moves using precomputed check/pin constraints.
-         *
-         * @param board The chess position
-         * @param genQuiet If true, generate quiet moves; if false, only captures
-         */
-        void generateLegalMovesConstrained(const BoardState& board, bool genQuiet);
+    /**
+     * Clear the move list and reset counter
+     */
+    void clearMoves();
 
-        std::vector<Move> getPieceMoves(int square, const BoardState* boardState);
+    /**
+     * @return Number of legal moves generated
+     */
+    int getLegalMoveCount() const;
 
-        /**
-         * Add a move to the move list (with bounds checking)
-         */
-        void addMove(const Move& move);
+    // Query whether the side to move is in check (valid after generateLegalMoves)
+    bool getInCheck() const;
 
-        /**
-         * Clear the move list and reset counter
-         */
-        void clearMoves();
+private:
+    const BoardState* board = nullptr;
 
-        /**
-         * @return Number of legal moves generated
-         */
-        int getLegalMoveCount() const;
+    // Position tracking
+    bool isWhiteToMove = false;
+    int friendlyColour = -1;
+    int opponentColour = -1;
+    int friendlyKingSquare = -1;
+    int friendlyColourIndex = -1;
+    int opponentColourIndex = -1;
 
-        // Query whether the side to move is in check (valid after generateLegalMoves)
-        bool getInCheck() const;
+    uint64_t friendlyOccupancy = 0ULL;
+    uint64_t opponentOccupancy = 0ULL;
+    uint64_t allOccupancy = 0ULL;
 
+    // Attack state
+    bool inCheck = false;
+    bool inDoubleCheck = false;
+    bool pinsExistInPosition = false;
+    uint64_t checkRayBitmask = 0ULL;
+    uint64_t pinRayBitmask = 0ULL;
+    std::array<uint64_t, 64> pinLineBitmaskBySquare{};
 
-    private:
-        const BoardState* board = nullptr;
+    // Attack maps
+    uint64_t opponentKnightAttacks = 0ULL;
+    uint64_t opponentAttackMapNoPawns = 0ULL;
+    uint64_t opponentAttackMap = 0ULL;
+    uint64_t opponentPawnAttackMap = 0ULL;
+    uint64_t opponentSlidingAttackMap = 0ULL;
 
-        // Position tracking
-        bool isWhiteToMove = false;
-        int friendlyColour = -1;
-        int opponentColour = -1;
-        int friendlyKingSquare = -1;
-        int friendlyColourIndex = -1;
-        int opponentColourIndex = -1;
+    // Generation flags
+    bool genQuiets = true;
 
-        uint64_t friendlyOccupancy = 0ULL;
-        uint64_t opponentOccupancy = 0ULL;
-        uint64_t allOccupancy = 0ULL;
+    /**
+     * Calculate all opponent attack data for the position
+     *
+     * Builds:
+     * - Pawn attack map
+     * - Knight attack map
+     * - Sliding piece attack map
+     * - Composite attack maps
+     * - Check and pin information
+     *
+     * Updates the board state with the complete attack tables for both sides
+     */
+    void calculateOpponentAttackData();
 
-        // Attack state
-        bool inCheck = false;
-        bool inDoubleCheck = false;
-        bool pinsExistInPosition = false;
-        uint64_t checkRayBitmask = 0ULL;
-        uint64_t pinRayBitmask = 0ULL;
-        std::array<uint64_t, 64> pinLineBitmaskBySquare{};
+    /**
+     * Generate sliding piece attack map and detect checks/pins
+     *
+     * Analyzes all opponent rooks, bishops, and queens to:
+     * - Build sliding attack bitboard
+     * - Detect direct checks
+     * - Detect pinned pieces
+     */
+    void genSlidingAttackMap();
 
-        // Attack maps
-        uint64_t opponentKnightAttacks = 0ULL;
-        uint64_t opponentAttackMapNoPawns = 0ULL;
-        uint64_t opponentAttackMap = 0ULL;
-        uint64_t opponentPawnAttackMap = 0ULL;
-        uint64_t opponentSlidingAttackMap = 0ULL;
+    /**
+     * Update attack data for a single sliding piece
+     *
+     * Detects:
+     * - Direct checks (ray hits friendly king)
+     * - Pin rays (ray through friendly piece to king)
+     * - Attack contributions to sliding attack map
+     *
+     * @param startSquare The square of the sliding piece
+     * @param startDirIndex First direction to analyze (0=N, 4=NW, etc.)
+     * @param endDirIndex End of direction range (exclusive)
+     */
+    void updateSlidingAttackPiece(int startSquare, int startDirIndex, int endDirIndex);
 
-        // Generation flags
-        bool genQuiets = true;
+    void generateKingMoves();
 
-        /**
-         * Calculate all opponent attack data for the position
-         * 
-         * Builds:
-         * - Pawn attack map
-         * - Knight attack map
-         * - Sliding piece attack map
-         * - Composite attack maps
-         * - Check and pin information
-         * 
-         * Updates the board state with the complete attack tables for both sides
-         */
-        void calculateOpponentAttackData();
+    void generateSlidingMoves();
 
-        /**
-         * Generate sliding piece attack map and detect checks/pins
-         * 
-         * Analyzes all opponent rooks, bishops, and queens to:
-         * - Build sliding attack bitboard
-         * - Detect direct checks
-         * - Detect pinned pieces
-         */
-        void genSlidingAttackMap();
+    void generateRookMoves();
+    void generateBishopMoves();
+    void generateQueenMoves();
 
-        /**
-         * Update attack data for a single sliding piece
-         * 
-         * Detects:
-         * - Direct checks (ray hits friendly king)
-         * - Pin rays (ray through friendly piece to king)
-         * - Attack contributions to sliding attack map
-         * 
-         * @param startSquare The square of the sliding piece
-         * @param startDirIndex First direction to analyze (0=N, 4=NW, etc.)
-         * @param endDirIndex End of direction range (exclusive)
-         */
-        void updateSlidingAttackPiece(int startSquare, int startDirIndex, int endDirIndex);
+    void generateKnightMoves();
 
-        void generateKingMoves();
+    void generatePawnMoves();
 
-        void generateSlidingMoves();
+    void makePromotionMoves(int fromSquare, int toSquare);
 
-        void generateRookMoves();
-        void generateBishopMoves();
-        void generateQueenMoves();
+    bool isPinnedFunc(int square);
 
-        void generateKnightMoves();
+    bool squareIsInCheckRay(int square);
 
-        void generatePawnMoves();
+    bool hasKingsideCastleRight();
 
-        void makePromotionMoves(int fromSquare, int toSquare);
+    bool hasQueensideCastleRight();
 
-        bool isPinnedFunc(int square);
-    
-        bool squareIsInCheckRay(int square);
-    
-        bool hasKingsideCastleRight();
-    
-        bool hasQueensideCastleRight();
+    bool squareIsAttacked(int square);
 
-        bool squareIsAttacked(int square);
-    
-        bool inCheckAfterEnPassant(int startSquare, int targetSquare, int epCapturedPawnSquare);
+    bool inCheckAfterEnPassant(int startSquare, int targetSquare, int epCapturedPawnSquare);
 
-        bool isSquareAttackedByColor(int square, int opponentColor, const BoardState& testBoard);
+    bool isSquareAttackedByColor(int square, int opponentColor, const BoardState& testBoard);
 
-        void addQuietMove(const BoardState& board, int fromSquare, int toSquare);
-    
-        void addCaptureMove(const BoardState& board, int fromSquare, int toSquare);
-    
-        void addEnPassantMove(const BoardState& board, int fromSquare, int toSquare);
-    
-        void addPawnMove(const BoardState& board, int fromSquare, int toSquare);
-    
-        void addPawnCaptureMove(const BoardState& board, int fromSquare, int toSquare, int capturedPieceType);
-    };
+    void addQuietMove(const BoardState& board, int fromSquare, int toSquare);
+
+    void addCaptureMove(const BoardState& board, int fromSquare, int toSquare);
+
+    void addEnPassantMove(const BoardState& board, int fromSquare, int toSquare);
+
+    void addPawnMove(const BoardState& board, int fromSquare, int toSquare);
+
+    void addPawnCaptureMove(const BoardState& board, int fromSquare, int toSquare, int capturedPieceType);
+};
 }  // namespace Chess
-#endif // MOVE_GENERATOR_H
+#endif  // MOVE_GENERATOR_H

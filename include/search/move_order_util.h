@@ -7,241 +7,237 @@
 #include <utility>
 #include <vector>
 
+#include "bitboard_util.h"
 #include "board_state.h"
-#include "move.h"
 #include "magics.h"
+#include "move.h"
 #include "pieces.h"
 #include "precomp_move_data.h"
-#include "bitboard_util.h"
+
 
 namespace Chess {
-    class MoveOrderUtil {
-    public:
-        static constexpr int MAX_PLY = 128;
+class MoveOrderUtil {
+public:
+    static constexpr int MAX_PLY = 128;
 
-        static int SEECapture(const BoardState& board, const Move& move) {
-            if (!move.isValid()) return 0;
+    static int SEECapture(const BoardState& board, const Move& move) {
+        if (!move.isValid()) return 0;
 
-            const int from = move.startSquare();
-            const int to = move.targetSquare();
-            int side = board.getSide();
-            int opponent = side ^ 1;
+        const int from = move.startSquare();
+        const int to = move.targetSquare();
+        int side = board.getSide();
+        int opponent = side ^ 1;
 
-            const int movingPiece = board.getPieceTypeAt(from);
-            if (movingPiece < 0) return 0;
+        const int movingPiece = board.getPieceTypeAt(from);
+        if (movingPiece < 0) return 0;
 
-            int capturedPiece = board.getPieceTypeAt(to);
-            if (move.flag() == Move::Flag::EnPassantCapture) {
-                capturedPiece = PIECE_PAWN;
+        int capturedPiece = board.getPieceTypeAt(to);
+        if (move.flag() == Move::Flag::EnPassantCapture) {
+            capturedPiece = PIECE_PAWN;
+        }
+        if (capturedPiece < 0) return 0;
+
+        std::array<std::array<uint64_t, 6>, 2> pieces = board.getPieceBoards();
+        uint64_t occ = board.getMainBoard();
+
+        std::array<int, 32> gain{};
+        int depth = 0;
+
+        int attackerPiece = move.isPromotion() ? move.promotionPieceType() : movingPiece;
+        gain[depth] = getPieceValue(capturedPiece);
+
+        removePiece(pieces, side, movingPiece, from);
+        occ &= ~(1ULL << from);
+
+        if (move.flag() == Move::Flag::EnPassantCapture) {
+            const int epCapturedSq = to + (side == COLOR_WHITE ? -8 : 8);
+            removePiece(pieces, opponent, PIECE_PAWN, epCapturedSq);
+            occ &= ~(1ULL << epCapturedSq);
+        }
+
+        sideToMoveSwap(side, opponent);
+
+        while (true) {
+            ++depth;
+            gain[depth] = getPieceValue(attackerPiece) - gain[depth - 1];
+
+            if (std::max(-gain[depth - 1], gain[depth]) < 0) {
+                break;
             }
-            if (capturedPiece < 0) return 0;
 
-            std::array<std::array<uint64_t, 6>, 2> pieces = board.getPieceBoards();
-            uint64_t occ = board.getMainBoard();
-
-            std::array<int, 32> gain{};
-            int depth = 0;
-
-            int attackerPiece = move.isPromotion() ? move.promotionPieceType() : movingPiece;
-            gain[depth] = getPieceValue(capturedPiece);
-
-            removePiece(pieces, side, movingPiece, from);
-            occ &= ~(1ULL << from);
-
-            if (move.flag() == Move::Flag::EnPassantCapture) {
-                const int epCapturedSq = to + (side == COLOR_WHITE ? -8 : 8);
-                removePiece(pieces, opponent, PIECE_PAWN, epCapturedSq);
-                occ &= ~(1ULL << epCapturedSq);
+            int nextPiece = -1;
+            int nextSquare = -1;
+            if (!leastValuableAttacker(pieces, occ, side, to, nextPiece, nextSquare)) {
+                break;
             }
 
+            removePiece(pieces, side, nextPiece, nextSquare);
+            occ &= ~(1ULL << nextSquare);
+
+            attackerPiece = nextPiece;
             sideToMoveSwap(side, opponent);
-
-            while (true) {
-                ++depth;
-                gain[depth] = getPieceValue(attackerPiece) - gain[depth - 1];
-
-                if (std::max(-gain[depth - 1], gain[depth]) < 0) {
-                    break;
-                }
-
-                int nextPiece = -1;
-                int nextSquare = -1;
-                if (!leastValuableAttacker(pieces, occ, side, to, nextPiece, nextSquare)) {
-                    break;
-                }
-
-                removePiece(pieces, side, nextPiece, nextSquare);
-                occ &= ~(1ULL << nextSquare);
-
-                attackerPiece = nextPiece;
-                sideToMoveSwap(side, opponent);
-            }
-
-            while (--depth) {
-                gain[depth - 1] = -std::max(-gain[depth - 1], gain[depth]);
-            }
-
-            return gain[0];
         }
 
-        static bool isCaptureMove(const BoardState& board, const Move& move) {
-            if (!move.isValid()) return false;
-            if (move.flag() == Move::Flag::EnPassantCapture) return true;
-            return board.getPieceTypeAt(move.targetSquare()) >= 0;
+        while (--depth) {
+            gain[depth - 1] = -std::max(-gain[depth - 1], gain[depth]);
         }
 
-        static void orderMoves(const BoardState& board, const std::vector<Move>& moves,
-                                int ply, const Move& ttMove, std::vector<Move>& orderedMoves) {
-            std::vector<std::pair<int, Move>> goodCaptures;
-            std::vector<std::pair<int, Move>> badCaptures;
-            std::vector<Move> killerQuiets;
-            std::vector<Move> historyQuiets;
+        return gain[0];
+    }
 
-            for (const Move& move : moves) {
-                if (!move.isValid() || move == ttMove) continue;
+    static bool isCaptureMove(const BoardState& board, const Move& move) {
+        if (!move.isValid()) return false;
+        if (move.flag() == Move::Flag::EnPassantCapture) return true;
+        return board.getPieceTypeAt(move.targetSquare()) >= 0;
+    }
 
-                if (isCaptureMove(board, move)) {
-                    int see = SEECapture(board, move);
-                    if (see >= 0) {
-                        goodCaptures.emplace_back(see, move);
-                    } else {
-                        badCaptures.emplace_back(see, move);
-                    }
+    static void orderMoves(const BoardState& board, const std::vector<Move>& moves, int ply, const Move& ttMove,
+                           std::vector<Move>& orderedMoves) {
+        std::vector<std::pair<int, Move>> goodCaptures;
+        std::vector<std::pair<int, Move>> badCaptures;
+        std::vector<Move> killerQuiets;
+        std::vector<Move> historyQuiets;
+
+        for (const Move& move : moves) {
+            if (!move.isValid() || move == ttMove) continue;
+
+            if (isCaptureMove(board, move)) {
+                int see = SEECapture(board, move);
+                if (see >= 0) {
+                    goodCaptures.emplace_back(see, move);
                 } else {
-                    // Classify quiets into killer or history
-                    if (ply >= 0 && ply < MAX_PLY && 
-                        (move == killers_[ply][0] || move == killers_[ply][1])) {
-                        killerQuiets.push_back(move);
-                    } else {
-                        historyQuiets.push_back(move);
-                    }
+                    badCaptures.emplace_back(see, move);
+                }
+            } else {
+                // Classify quiets into killer or history
+                if (ply >= 0 && ply < MAX_PLY && (move == killers_[ply][0] || move == killers_[ply][1])) {
+                    killerQuiets.push_back(move);
+                } else {
+                    historyQuiets.push_back(move);
                 }
             }
+        }
 
-            // Sort captures by SEE
-            auto sortByScore = [](const std::pair<int, Move>& a, const std::pair<int, Move>& b) {
-                return a.first > b.first;
-            };
-            std::stable_sort(goodCaptures.begin(), goodCaptures.end(), sortByScore);
-            std::stable_sort(badCaptures.begin(), badCaptures.end(), sortByScore);
+        // Sort captures by SEE
+        auto sortByScore = [](const std::pair<int, Move>& a, const std::pair<int, Move>& b) { return a.first > b.first; };
+        std::stable_sort(goodCaptures.begin(), goodCaptures.end(), sortByScore);
+        std::stable_sort(badCaptures.begin(), badCaptures.end(), sortByScore);
 
-            // Sort history quiets by history score, with recapture bonus
-            std::vector<std::pair<int, Move>> scoredHistory;
-            scoredHistory.reserve(historyQuiets.size());
-        
-            const Move lastMove = board.getLastMove();
-            const int lastTargetSquare = lastMove.isValid() ? lastMove.targetSquare() : -1;
-        
-            for (const Move& move : historyQuiets) {
-                int score = history_[COLOR_WHITE][move.startSquare()][move.targetSquare()]
-                    + history_[COLOR_BLACK][move.startSquare()][move.targetSquare()];
-            
-                // Heavy bonus for recaptures (moves to the same square as opponent's last move)
-                if (lastTargetSquare >= 0 && move.targetSquare() == lastTargetSquare) {
-                    score += 5000;
-                }
-            
-                scoredHistory.emplace_back(score, move);
-            }
-            std::stable_sort(scoredHistory.begin(), scoredHistory.end(), sortByScore);
+        // Sort history quiets by history score, with recapture bonus
+        std::vector<std::pair<int, Move>> scoredHistory;
+        scoredHistory.reserve(historyQuiets.size());
 
-            // Assemble final move order
-            orderedMoves.clear();
-            orderedMoves.reserve(moves.size());
+        const Move lastMove = board.getLastMove();
+        const int lastTargetSquare = lastMove.isValid() ? lastMove.targetSquare() : -1;
 
-            // TT move
-            if (ttMove.isValid()) {
-                orderedMoves.push_back(ttMove);
+        for (const Move& move : historyQuiets) {
+            int score = history_[COLOR_WHITE][move.startSquare()][move.targetSquare()] +
+                        history_[COLOR_BLACK][move.startSquare()][move.targetSquare()];
+
+            // Heavy bonus for recaptures (moves to the same square as opponent's last move)
+            if (lastTargetSquare >= 0 && move.targetSquare() == lastTargetSquare) {
+                score += 5000;
             }
 
-            // Good captures (SEE >= 0)
-            for (const auto& [see, move] : goodCaptures) {
-                orderedMoves.push_back(move);
-            }
+            scoredHistory.emplace_back(score, move);
+        }
+        std::stable_sort(scoredHistory.begin(), scoredHistory.end(), sortByScore);
 
-            // Killer quiets
-            orderedMoves.insert(orderedMoves.end(), killerQuiets.begin(), killerQuiets.end());
+        // Assemble final move order
+        orderedMoves.clear();
+        orderedMoves.reserve(moves.size());
 
-            // History quiets
-            for (const auto& [score, move] : scoredHistory) {
-                orderedMoves.push_back(move);
-            }
-
-            // Bad captures (SEE < 0)
-            for (const auto& [see, move] : badCaptures) {
-                orderedMoves.push_back(move);
-            }
+        // TT move
+        if (ttMove.isValid()) {
+            orderedMoves.push_back(ttMove);
         }
 
-        static void orderMoves(const BoardState& board, const std::vector<Move>& moves,
-                               std::vector<Move>& orderedMoves) {
-            orderMoves(board, moves, -1, Move::invalid(), orderedMoves);
+        // Good captures (SEE >= 0)
+        for (const auto& [see, move] : goodCaptures) {
+            orderedMoves.push_back(move);
         }
 
-        static void updateKiller(const Move& move, int ply) {
-            if (ply < 0 || ply >= MAX_PLY || !move.isValid()) return;
-            if (killers_[ply][0] == move) return;
-            killers_[ply][1] = killers_[ply][0];
-            killers_[ply][0] = move;
+        // Killer quiets
+        orderedMoves.insert(orderedMoves.end(), killerQuiets.begin(), killerQuiets.end());
+
+        // History quiets
+        for (const auto& [score, move] : scoredHistory) {
+            orderedMoves.push_back(move);
         }
 
-        static void updateHistory(const Move& move, int side, int depth) {
-            if (!move.isValid() || side < 0 || side > 1) return;
-            const int from = move.startSquare();
-            const int to = move.targetSquare();
-            if (from < 0 || from >= 64 || to < 0 || to >= 64) return;
-
-            const int bonus = depth * depth;
-            int& entry = history_[side][from][to];
-            entry += bonus;
-            if (entry > 1'000'000) entry = 1'000'000;
+        // Bad captures (SEE < 0)
+        for (const auto& [see, move] : badCaptures) {
+            orderedMoves.push_back(move);
         }
+    }
 
-        static void clearHeuristics() {
-            killers_ = {};
-            history_ = {};
-        }
+    static void orderMoves(const BoardState& board, const std::vector<Move>& moves, std::vector<Move>& orderedMoves) {
+        orderMoves(board, moves, -1, Move::invalid(), orderedMoves);
+    }
 
-    private:
-        using KillerTable = std::array<std::array<Move, 2>, MAX_PLY>;
-        using HistoryTable = std::array<std::array<std::array<int, 64>, 64>, 2>; // [side][from][to]
+    static void updateKiller(const Move& move, int ply) {
+        if (ply < 0 || ply >= MAX_PLY || !move.isValid()) return;
+        if (killers_[ply][0] == move) return;
+        killers_[ply][1] = killers_[ply][0];
+        killers_[ply][0] = move;
+    }
 
-        inline static KillerTable killers_{};
-        inline static HistoryTable history_{};
+    static void updateHistory(const Move& move, int side, int depth) {
+        if (!move.isValid() || side < 0 || side > 1) return;
+        const int from = move.startSquare();
+        const int to = move.targetSquare();
+        if (from < 0 || from >= 64 || to < 0 || to >= 64) return;
 
-        static void sideToMoveSwap(int& side, int& opponent) {
-            const int tmp = side;
-            side = opponent;
-            opponent = tmp;
-        }
+        const int bonus = depth * depth;
+        int& entry = history_[side][from][to];
+        entry += bonus;
+        if (entry > 1'000'000) entry = 1'000'000;
+    }
 
-        static void removePiece(std::array<std::array<uint64_t, 6>, 2>& pieces, int color, int pieceType, int square) {
-            if (color < 0 || color > 1 || pieceType < PIECE_KING || pieceType > PIECE_QUEEN) return;
-            pieces[color][pieceType] &= ~(1ULL << square);
-        }
+    static void clearHeuristics() {
+        killers_ = {};
+        history_ = {};
+    }
 
-        static bool leastValuableAttacker(const std::array<std::array<uint64_t, 6>, 2>& pieces,
-                                          uint64_t occ, int color, int target, int& outPiece,
-                                          int& outSquare) {
-            for (int pieceType : lvaOrder) {
-                uint64_t bb = pieces[color][pieceType];
-                while (bb) {
-                    const int sq = static_cast<int>(getLSB(bb));
-                    bb &= (bb - 1);
+private:
+    using KillerTable = std::array<std::array<Move, 2>, MAX_PLY>;
+    using HistoryTable = std::array<std::array<std::array<int, 64>, 64>, 2>;  // [side][from][to]
 
-                    if (pieceAttacksSquare(pieceType, color, sq, target, occ)) {
-                        outPiece = pieceType;
-                        outSquare = sq;
-                        return true;
-                    }
+    inline static KillerTable killers_{};
+    inline static HistoryTable history_{};
+
+    static void sideToMoveSwap(int& side, int& opponent) {
+        const int tmp = side;
+        side = opponent;
+        opponent = tmp;
+    }
+
+    static void removePiece(std::array<std::array<uint64_t, 6>, 2>& pieces, int color, int pieceType, int square) {
+        if (color < 0 || color > 1 || pieceType < PIECE_KING || pieceType > PIECE_QUEEN) return;
+        pieces[color][pieceType] &= ~(1ULL << square);
+    }
+
+    static bool leastValuableAttacker(const std::array<std::array<uint64_t, 6>, 2>& pieces, uint64_t occ, int color, int target,
+                                      int& outPiece, int& outSquare) {
+        for (int pieceType : lvaOrder) {
+            uint64_t bb = pieces[color][pieceType];
+            while (bb) {
+                const int sq = static_cast<int>(getLSB(bb));
+                bb &= (bb - 1);
+
+                if (pieceAttacksSquare(pieceType, color, sq, target, occ)) {
+                    outPiece = pieceType;
+                    outSquare = sq;
+                    return true;
                 }
             }
-
-            return false;
         }
 
-        static bool pieceAttacksSquare(int pieceType, int color, int from, int target, uint64_t occ) {
-            switch (pieceType) {
+        return false;
+    }
+
+    static bool pieceAttacksSquare(int pieceType, int color, int from, int target, uint64_t occ) {
+        switch (pieceType) {
             case PIECE_PAWN: {
                 if (color == COLOR_WHITE) {
                     const auto& attacks = PrecomputedMoveData::getPawnAttacksWhite(from);
@@ -251,41 +247,34 @@ namespace Chess {
                     return std::find(attacks.begin(), attacks.end(), target) != attacks.end();
                 }
             }
-            case PIECE_KNIGHT:
-                return (PrecomputedMoveData::getKnightAttacks(from) & (1ULL << target)) != 0;
-            case PIECE_KING:
-                return (PrecomputedMoveData::getKingMoves(from) & (1ULL << target)) != 0;
-            case PIECE_BISHOP:
-                return slidingAttacksSquare(from, target, occ, true, false);
-            case PIECE_ROOK:
-                return slidingAttacksSquare(from, target, occ, false, true);
-            case PIECE_QUEEN:
-                return slidingAttacksSquare(from, target, occ, true, true);
-            default:
-                return false;
-            }
+            case PIECE_KNIGHT: return (PrecomputedMoveData::getKnightAttacks(from) & (1ULL << target)) != 0;
+            case PIECE_KING: return (PrecomputedMoveData::getKingMoves(from) & (1ULL << target)) != 0;
+            case PIECE_BISHOP: return slidingAttacksSquare(from, target, occ, true, false);
+            case PIECE_ROOK: return slidingAttacksSquare(from, target, occ, false, true);
+            case PIECE_QUEEN: return slidingAttacksSquare(from, target, occ, true, true);
+            default: return false;
+        }
+    }
+
+    static bool slidingAttacksSquare(int from, int target, uint64_t occ, bool bishopLike, bool rookLike) {
+        const uint64_t targetMask = (1ULL << target);
+
+        if (bishopLike) {
+            const MagicEntry m = bishopMagics[from];
+            const uint64_t blocking = occ | ~m.mask;
+            const uint64_t index = (blocking * m.magic) >> m.shift;
+            if (m.ptr[index] & targetMask) return true;
         }
 
-        static bool slidingAttacksSquare(int from, int target, uint64_t occ, bool bishopLike, bool rookLike) {
-            const uint64_t targetMask = (1ULL << target);
-
-            if (bishopLike) {
-                const MagicEntry m = bishopMagics[from];
-                const uint64_t blocking = occ | ~m.mask;
-                const uint64_t index = (blocking * m.magic) >> m.shift;
-                if (m.ptr[index] & targetMask) return true;
-            }
-
-            if (rookLike) {
-                const MagicEntry m = rookMagics[from];
-                const uint64_t blocking = occ | ~m.mask;
-                const uint64_t index = (blocking * m.magic) >> m.shift;
-                if (m.ptr[index] & targetMask) return true;
-            }
-
-            return false;
+        if (rookLike) {
+            const MagicEntry m = rookMagics[from];
+            const uint64_t blocking = occ | ~m.mask;
+            const uint64_t index = (blocking * m.magic) >> m.shift;
+            if (m.ptr[index] & targetMask) return true;
         }
-    };
-} // namespace Chess
-#endif // MOVE_ORDER_UTIL_H
 
+        return false;
+    }
+};
+}  // namespace Chess
+#endif  // MOVE_ORDER_UTIL_H

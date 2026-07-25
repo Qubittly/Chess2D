@@ -2,48 +2,49 @@
 #define SCREEN_H
 
 #include <SDL3/SDL.h>
-#include <vector>
-#include <string>
 
+#include <string>
+#include <vector>
 
 #include "board.h"
-#include "search.h"
 #include "input.h"
+#include "search.h"
 
-namespace Chess  {
-    class GameWindow {
-    public:
-        GameWindow(int width = 600, int height = 600);
-    
-        virtual void show();
-        virtual void update();
-        void run();
-        void destroy();
 
-        void initializeGame(const std::string& fen = "");
-        void resetGame();
+namespace Chess {
+class GameWindow {
+public:
+    GameWindow(int width = 600, int height = 600);
 
-        const Move pickMove(const std::vector<Move>& moves, int targetSquare);
+    virtual void show();
+    virtual void update();
+    void run();
+    void destroy();
 
-        void handleMouseClick(int mouseX, int mouseY, Board& board, bool leftMouseClicked);
-        void makeMove(const Move& move, Board& board);
-        void handleComputerMove();
+    void initializeGame(const std::string& fen = "");
+    void resetGame();
 
-        const int getSelectedPieceSquare() const;
-        void clearSelection();
+    const Move pickMove(const std::vector<Move>& moves, int targetSquare);
 
-    private:
-        SDL_Window* window;
-        SDL_Renderer* renderer;
-        SDL_Surface* icon = nullptr;
-        Input input;
-        Board gameBoard;
-        bool running = true;
-        bool computerPlayEnabled = true;
-        double deltaTime;
-        int playerColor = COLOR_WHITE;
-        int selectedSquare = -1;
-        SearchSettings aiSettings = Search::DefaultSettings();
-    };
+    void handleMouseClick(int mouseX, int mouseY, Board& board, bool leftMouseClicked);
+    void makeMove(const Move& move, Board& board);
+    void handleComputerMove();
+
+    const int getSelectedPieceSquare() const;
+    void clearSelection();
+
+private:
+    SDL_Window* window;
+    SDL_Renderer* renderer;
+    SDL_Surface* icon = nullptr;
+    Input input;
+    Board gameBoard;
+    bool running = true;
+    bool computerPlayEnabled = true;
+    double deltaTime;
+    int playerColor = COLOR_WHITE;
+    int selectedSquare = -1;
+    SearchSettings aiSettings = Search::DefaultSettings();
+};
 }  // namespace Chess
-#endif // SCREEN_H
+#endif  // SCREEN_H

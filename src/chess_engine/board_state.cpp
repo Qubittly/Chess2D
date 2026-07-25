@@ -1,675 +1,661 @@
 #include "board_state.h"
+
+#include <iostream>
+
 #include "bitboard_util.h"
 #include "fen_util.h"
 #include "logger.h"
 #include "pieces.h"
 
-#include <iostream>
-
 namespace Chess {
 
-    void BoardState::updateCastlingRights(int pieceType, int fromFile, int fromRank,
-                                         int capturedType, int captureFile, int captureRank) {
-        if (pieceType == PIECE_KING) {
-            if (side == COLOR_WHITE) {
-                castleRights &= ~0x03;
-            } else {
-                castleRights &= ~0x0C;
-            }
-        }
-
-        if (pieceType == PIECE_ROOK) {
-            if (fromFile == 0 && fromRank == 0) castleRights &= ~0x02;
-            if (fromFile == 7 && fromRank == 0) castleRights &= ~0x01;
-            if (fromFile == 0 && fromRank == 7) castleRights &= ~0x08;
-            if (fromFile == 7 && fromRank == 7) castleRights &= ~0x04;
-        }
-
-        if (capturedType == PIECE_ROOK) {
-            if (captureFile == 0 && captureRank == 0) castleRights &= ~0x02;
-            if (captureFile == 7 && captureRank == 0) castleRights &= ~0x01;
-            if (captureFile == 0 && captureRank == 7) castleRights &= ~0x08;
-            if (captureFile == 7 && captureRank == 7) castleRights &= ~0x04;
+void BoardState::updateCastlingRights(int pieceType, int fromFile, int fromRank, int capturedType, int captureFile, int captureRank) {
+    if (pieceType == PIECE_KING) {
+        if (side == COLOR_WHITE) {
+            castleRights &= ~0x03;
+        } else {
+            castleRights &= ~0x0C;
         }
     }
 
-    void BoardState::updateEnPassantSquare(int fromSquare, int toSquare, int pieceType) {
-        enPas = -1;
-        if (pieceType != PIECE_PAWN) return;
-
-        const int fromRank = BoardRepresentation::RankIndex(fromSquare);
-        const int toRank = BoardRepresentation::RankIndex(toSquare);
-        const int file = BoardRepresentation::FileIndex(fromSquare);
-
-        if (side == COLOR_WHITE && fromRank == 1 && toRank == 3) {
-            enPas = BoardRepresentation::IndexFromCoord(file, 2);
-        }
-        else if (side == COLOR_BLACK && fromRank == 6 && toRank == 4) {
-            enPas = BoardRepresentation::IndexFromCoord(file, 5);
-        }
+    if (pieceType == PIECE_ROOK) {
+        if (fromFile == 0 && fromRank == 0) castleRights &= ~0x02;
+        if (fromFile == 7 && fromRank == 0) castleRights &= ~0x01;
+        if (fromFile == 0 && fromRank == 7) castleRights &= ~0x08;
+        if (fromFile == 7 && fromRank == 7) castleRights &= ~0x04;
     }
 
-    BoardState::BoardState() {
-        if (!zobristKeys.isInitialized()) {
-            zobristKeys.init();
-        }
+    if (capturedType == PIECE_ROOK) {
+        if (captureFile == 0 && captureRank == 0) castleRights &= ~0x02;
+        if (captureFile == 7 && captureRank == 0) castleRights &= ~0x01;
+        if (captureFile == 0 && captureRank == 7) castleRights &= ~0x08;
+        if (captureFile == 7 && captureRank == 7) castleRights &= ~0x04;
+    }
+}
+
+void BoardState::updateEnPassantSquare(int fromSquare, int toSquare, int pieceType) {
+    enPas = -1;
+    if (pieceType != PIECE_PAWN) return;
+
+    const int fromRank = BoardRepresentation::RankIndex(fromSquare);
+    const int toRank = BoardRepresentation::RankIndex(toSquare);
+    const int file = BoardRepresentation::FileIndex(fromSquare);
+
+    if (side == COLOR_WHITE && fromRank == 1 && toRank == 3) {
+        enPas = BoardRepresentation::IndexFromCoord(file, 2);
+    } else if (side == COLOR_BLACK && fromRank == 6 && toRank == 4) {
+        enPas = BoardRepresentation::IndexFromCoord(file, 5);
+    }
+}
+
+BoardState::BoardState() {
+    if (!zobristKeys.isInitialized()) {
+        zobristKeys.init();
+    }
+    reset();
+    moveHistory.reserve(2084);
+}
+
+void BoardState::init(const std::string& fen) {
+    if (fen.empty()) {
         reset();
-        moveHistory.reserve(2084);
+    } else {
+        loadFEN(fen);
     }
+}
 
-    void BoardState::init(const std::string& fen) {
-        if (fen.empty()) {
-            reset();
-        } else {
-            loadFEN(fen);
+void BoardState::reset() {
+    side = COLOR_WHITE;
+    enPas = -1;
+    fiftyMove = 0;
+    hisPly = 0;
+    castleRights = 0x0F;
+
+    for (int color = 0; color < 2; ++color) {
+        for (int type = 0; type < 6; ++type) {
+            pieceBoards[color][type] = 0;
         }
     }
 
-    void BoardState::reset() {
-        side = COLOR_WHITE;
-        enPas = -1;
+    pieceBoards[COLOR_WHITE][PIECE_PAWN] = 0x000000000000FF00ULL;
+    pieceBoards[COLOR_WHITE][PIECE_ROOK] = 0x0000000000000081ULL;
+    pieceBoards[COLOR_WHITE][PIECE_KNIGHT] = 0x0000000000000042ULL;
+    pieceBoards[COLOR_WHITE][PIECE_BISHOP] = 0x0000000000000024ULL;
+    pieceBoards[COLOR_WHITE][PIECE_QUEEN] = 0x0000000000000008ULL;
+    pieceBoards[COLOR_WHITE][PIECE_KING] = 0x0000000000000010ULL;
+
+    pieceBoards[COLOR_BLACK][PIECE_PAWN] = 0x00FF000000000000ULL;
+    pieceBoards[COLOR_BLACK][PIECE_ROOK] = 0x8100000000000000ULL;
+    pieceBoards[COLOR_BLACK][PIECE_KNIGHT] = 0x4200000000000000ULL;
+    pieceBoards[COLOR_BLACK][PIECE_BISHOP] = 0x2400000000000000ULL;
+    pieceBoards[COLOR_BLACK][PIECE_QUEEN] = 0x0800000000000000ULL;
+    pieceBoards[COLOR_BLACK][PIECE_KING] = 0x1000000000000000ULL;
+
+    rebuildOccupancy();
+    rebuildMailbox();
+    rebuildPieceLists();
+    posKey = generatePosKey();
+}
+
+void BoardState::updateOccupancy(int square64, int color, bool add) {
+    const uint64_t mask = (1ULL << square64);
+    if (add) {
+        if (color == COLOR_WHITE) {
+            whitePieces |= mask;
+        } else {
+            blackPieces |= mask;
+        }
+    } else {
+        if (color == COLOR_WHITE) {
+            whitePieces &= ~mask;
+        } else {
+            blackPieces &= ~mask;
+        }
+    }
+    mainBoard = whitePieces | blackPieces;
+}
+
+void BoardState::updateMailbox(int square64, int pieceType) {
+    const int index120 = toMailboxIndex(square64);
+    mailbox[index120] = pieceType;
+}
+
+void BoardState::clearMailboxSquare(int square64) {
+    const int index120 = toMailboxIndex(square64);
+    mailbox[index120] = -1;
+}
+
+void BoardState::rebuildOccupancy() {
+    whitePieces = 0;
+    blackPieces = 0;
+
+    for (int type = 0; type < 6; ++type) {
+        whitePieces |= pieceBoards[COLOR_WHITE][type];
+    }
+
+    for (int type = 0; type < 6; ++type) {
+        blackPieces |= pieceBoards[COLOR_BLACK][type];
+    }
+
+    mainBoard = whitePieces | blackPieces;
+}
+
+void BoardState::rebuildMailbox() {
+    mailbox.fill(-1);
+
+    for (int color = 0; color < 2; ++color) {
+        for (int type = 0; type < 6; ++type) {
+            uint64_t pieceBoard = pieceBoards[color][type];
+
+            while (pieceBoard) {
+                const int lowestSetBit = static_cast<int>(getLSB(pieceBoard));
+                const int mailboxIndex = toMailboxIndex(lowestSetBit);
+                mailbox[mailboxIndex] = type;
+                pieceBoard &= (pieceBoard - 1);
+            }
+        }
+    }
+}
+
+void BoardState::rebuildPieceLists() {
+    for (int color = 0; color < 2; ++color) {
+        for (int type = 0; type < 6; ++type) {
+            pieceLists[color][type].clear();
+        }
+    }
+
+    for (int color = 0; color < 2; ++color) {
+        for (int type = 0; type < 6; ++type) {
+            uint64_t pieceBoard = pieceBoards[color][type];
+
+            while (pieceBoard) {
+                const int square = static_cast<int>(getLSB(pieceBoard));
+                pieceLists[color][type].add(square);
+                pieceBoard &= (pieceBoard - 1);
+            }
+        }
+    }
+}
+
+void BoardState::updatePieceList(int color, int pieceType, int fromSquare, int toSquare) {
+    pieceLists[color][pieceType].move(fromSquare, toSquare);
+}
+
+void BoardState::removePieceFromList(int color, int pieceType, int square) { pieceLists[color][pieceType].remove(square); }
+
+void BoardState::addPieceToList(int color, int pieceType, int square) { pieceLists[color][pieceType].add(square); }
+
+void BoardState::makeMove(Move move) {
+    const int fromSquare = move.startSquare();
+    const int toSquare = move.targetSquare();
+
+    const uint64_t fromMask = (1ULL << fromSquare);
+    const uint64_t toMask = (1ULL << toSquare);
+    const int toIndex120 = toMailboxIndex(toSquare);
+
+    const int pieceType = getPieceTypeAt(fromSquare);
+    if (pieceType < 0) {
+        return;
+    }
+
+    int capturedType = -1;
+    int capturedColor = -1;
+    int capturedSquare = toSquare;
+
+    const bool isEnPassant = (move.flag() == Move::Flag::EnPassantCapture);
+    if (isEnPassant && pieceType == PIECE_PAWN) {
+        capturedSquare = toSquare + ((side == COLOR_WHITE) ? -8 : 8);
+        const int capType = getPieceTypeAt(capturedSquare);
+        const int capColor = getColorAt(capturedSquare);
+        if (capType == PIECE_PAWN && capColor == (side ^ 1)) {
+            capturedType = capType;
+            capturedColor = capColor;
+        }
+    } else if (mainBoard & toMask) {
+        capturedType = mailbox[toIndex120];
+        capturedColor = getColorAt(toSquare);
+    }
+
+    MoveHistoryEntry historyEntry;
+    historyEntry.move = move;
+    historyEntry.capturedPieceType = capturedType;
+    historyEntry.capturedPieceColor = capturedColor;
+    historyEntry.capturedSquare = (capturedType != -1) ? capturedSquare : -1;
+    historyEntry.previousSide = side;
+    historyEntry.previousEnPas = enPas;
+    historyEntry.previousFiftyMove = fiftyMove;
+    historyEntry.previousCastleRights = castleRights;
+    historyEntry.previousPosKey = posKey;
+    historyEntry.previousInCheck[0] = inCheck[0];
+    historyEntry.previousInCheck[1] = inCheck[1];
+
+    const int fromFile = BoardRepresentation::FileIndex(fromSquare);
+    const int toFile = BoardRepresentation::FileIndex(toSquare);
+    const int fromRank = BoardRepresentation::RankIndex(fromSquare);
+    const int toRank = BoardRepresentation::RankIndex(toSquare);
+
+    if (capturedType != -1) {
+        const uint64_t captureMask = (1ULL << capturedSquare);
+        pieceBoards[capturedColor][capturedType] &= ~captureMask;
+        updateOccupancy(capturedSquare, capturedColor, false);
+        clearMailboxSquare(capturedSquare);
+        removePieceFromList(capturedColor, capturedType, capturedSquare);
+    }
+
+    int finalPieceType = pieceType;
+    if (move.isPromotion()) {
+        finalPieceType = move.promotionPieceType();
+    }
+
+    pieceBoards[side][pieceType] &= ~fromMask;
+    pieceBoards[side][finalPieceType] |= toMask;
+
+    updateOccupancy(fromSquare, side, false);
+    updateOccupancy(toSquare, side, true);
+
+    clearMailboxSquare(fromSquare);
+    updateMailbox(toSquare, finalPieceType);
+
+    updateCastlingRights(pieceType, fromFile, fromRank, capturedType, toFile, toRank);
+    updateEnPassantSquare(fromSquare, toSquare, pieceType);
+
+    fiftyMove++;
+    if (pieceType == PIECE_PAWN || capturedType != -1) {
         fiftyMove = 0;
-        hisPly = 0;
-        castleRights = 0x0F;
-
-        for (int color = 0; color < 2; ++color) {
-            for (int type = 0; type < 6; ++type) {
-                pieceBoards[color][type] = 0;
-            }
-        }
-
-        pieceBoards[COLOR_WHITE][PIECE_PAWN] = 0x000000000000FF00ULL;
-        pieceBoards[COLOR_WHITE][PIECE_ROOK] = 0x0000000000000081ULL;
-        pieceBoards[COLOR_WHITE][PIECE_KNIGHT] = 0x0000000000000042ULL;
-        pieceBoards[COLOR_WHITE][PIECE_BISHOP] = 0x0000000000000024ULL;
-        pieceBoards[COLOR_WHITE][PIECE_QUEEN] = 0x0000000000000008ULL;
-        pieceBoards[COLOR_WHITE][PIECE_KING] = 0x0000000000000010ULL;
-
-        pieceBoards[COLOR_BLACK][PIECE_PAWN] = 0x00FF000000000000ULL;
-        pieceBoards[COLOR_BLACK][PIECE_ROOK] = 0x8100000000000000ULL;
-        pieceBoards[COLOR_BLACK][PIECE_KNIGHT] = 0x4200000000000000ULL;
-        pieceBoards[COLOR_BLACK][PIECE_BISHOP] = 0x2400000000000000ULL;
-        pieceBoards[COLOR_BLACK][PIECE_QUEEN] = 0x0800000000000000ULL;
-        pieceBoards[COLOR_BLACK][PIECE_KING] = 0x1000000000000000ULL;
-
-        rebuildOccupancy();
-        rebuildMailbox();
-        rebuildPieceLists();
-        posKey = generatePosKey();
     }
 
-    void BoardState::updateOccupancy(int square64, int color, bool add) {
-        const uint64_t mask = (1ULL << square64);
-        if (add) {
-            if (color == COLOR_WHITE) {
-                whitePieces |= mask;
-            } else {
-                blackPieces |= mask;
-            }
-        } else {
-            if (color == COLOR_WHITE) {
-                whitePieces &= ~mask;
-            } else {
-                blackPieces &= ~mask;
-            }
-        }
-        mainBoard = whitePieces | blackPieces;
+    side ^= 1;
+    hisPly++;
+
+    if (move.isPromotion()) {
+        removePieceFromList(side ^ 1, pieceType, fromSquare);
+        addPieceToList(side ^ 1, finalPieceType, toSquare);
+    } else {
+        updatePieceList(side ^ 1, pieceType, fromSquare, toSquare);
     }
 
-    void BoardState::updateMailbox(int square64, int pieceType) {
-        const int index120 = toMailboxIndex(square64);
-        mailbox[index120] = pieceType;
-    }
-
-    void BoardState::clearMailboxSquare(int square64) {
-        const int index120 = toMailboxIndex(square64);
-        mailbox[index120] = -1;
-    }
-
-    void BoardState::rebuildOccupancy() {
-        whitePieces = 0;
-        blackPieces = 0;
-
-        for (int type = 0; type < 6; ++type) {
-            whitePieces |= pieceBoards[COLOR_WHITE][type];
-        }
-
-        for (int type = 0; type < 6; ++type) {
-            blackPieces |= pieceBoards[COLOR_BLACK][type];
-        }
-
-        mainBoard = whitePieces | blackPieces;
-    }
-
-    void BoardState::rebuildMailbox() {
-        mailbox.fill(-1);
-
-        for (int color = 0; color < 2; ++color) {
-            for (int type = 0; type < 6; ++type) {
-                uint64_t pieceBoard = pieceBoards[color][type];
-
-                while (pieceBoard) {
-                    const int lowestSetBit = static_cast<int>(getLSB(pieceBoard));
-                    const int mailboxIndex = toMailboxIndex(lowestSetBit);
-                    mailbox[mailboxIndex] = type;
-                    pieceBoard &= (pieceBoard - 1);
-                }
-            }
+    if (pieceType == PIECE_KING) {
+        if (toFile - fromFile == 2) {
+            const int rookFromSq = BoardRepresentation::IndexFromCoord(7, fromRank);
+            const int rookToSq = BoardRepresentation::IndexFromCoord(5, fromRank);
+            const uint64_t rookFromMask = (1ULL << rookFromSq);
+            const uint64_t rookToMask = (1ULL << rookToSq);
+            const int rookColor = side ^ 1;
+            pieceBoards[rookColor][PIECE_ROOK] &= ~rookFromMask;
+            pieceBoards[rookColor][PIECE_ROOK] |= rookToMask;
+            updateOccupancy(rookFromSq, rookColor, false);
+            updateOccupancy(rookToSq, rookColor, true);
+            clearMailboxSquare(rookFromSq);
+            updateMailbox(rookToSq, PIECE_ROOK);
+            updatePieceList(rookColor, PIECE_ROOK, rookFromSq, rookToSq);
+        } else if (fromFile - toFile == 2) {
+            const int rookFromSq = BoardRepresentation::IndexFromCoord(0, fromRank);
+            const int rookToSq = BoardRepresentation::IndexFromCoord(3, fromRank);
+            const uint64_t rookFromMask = (1ULL << rookFromSq);
+            const uint64_t rookToMask = (1ULL << rookToSq);
+            const int rookColor = side ^ 1;
+            pieceBoards[rookColor][PIECE_ROOK] &= ~rookFromMask;
+            pieceBoards[rookColor][PIECE_ROOK] |= rookToMask;
+            updateOccupancy(rookFromSq, rookColor, false);
+            updateOccupancy(rookToSq, rookColor, true);
+            clearMailboxSquare(rookFromSq);
+            updateMailbox(rookToSq, PIECE_ROOK);
+            updatePieceList(rookColor, PIECE_ROOK, rookFromSq, rookToSq);
         }
     }
 
-    void BoardState::rebuildPieceLists() {
-        for (int color = 0; color < 2; ++color) {
-            for (int type = 0; type < 6; ++type) {
-                pieceLists[color][type].clear();
-            }
-        }
+    posKey = generatePosKey();
+    moveHistory.push_back(historyEntry);
+}
 
-        for (int color = 0; color < 2; ++color) {
-            for (int type = 0; type < 6; ++type) {
-                uint64_t pieceBoard = pieceBoards[color][type];
-
-                while (pieceBoard) {
-                    const int square = static_cast<int>(getLSB(pieceBoard));
-                    pieceLists[color][type].add(square);
-                    pieceBoard &= (pieceBoard - 1);
-                }
-            }
-        }
+bool BoardState::unmakeMove() {
+    if (moveHistory.empty()) {
+        std::cout << "BoardState::unmakeMove: No moves to undo\n";
+        return false;
     }
 
-    void BoardState::updatePieceList(int color, int pieceType, int fromSquare, int toSquare) {
-        pieceLists[color][pieceType].move(fromSquare, toSquare);
+    const MoveHistoryEntry& historyEntry = moveHistory.back();
+
+    if (historyEntry.isNullMove) {
+        side = historyEntry.previousSide;
+        enPas = historyEntry.previousEnPas;
+        posKey = historyEntry.previousPosKey;
+        inCheck[0] = historyEntry.previousInCheck[0];
+        inCheck[1] = historyEntry.previousInCheck[1];
+        moveHistory.pop_back();
+        return true;
     }
 
-    void BoardState::removePieceFromList(int color, int pieceType, int square) {
-        pieceLists[color][pieceType].remove(square);
+    const Move move = historyEntry.move;
+
+    const int fromSquare = move.startSquare();
+    const int toSquare = move.targetSquare();
+    const uint64_t fromMask = (1ULL << fromSquare);
+    const uint64_t toMask = (1ULL << toSquare);
+
+    const int movingSide = historyEntry.previousSide;
+
+    const int pieceAtDestination = getPieceTypeAt(toSquare);
+    if (pieceAtDestination < 0) {
+        std::cout << "BoardState::unmakeMove: No piece at destination square\n";
+        return false;
     }
 
-    void BoardState::addPieceToList(int color, int pieceType, int square) {
-        pieceLists[color][pieceType].add(square);
+    const int originalPieceType = move.isPromotion() ? PIECE_PAWN : pieceAtDestination;
+
+    pieceBoards[movingSide][pieceAtDestination] &= ~toMask;
+    pieceBoards[movingSide][originalPieceType] |= fromMask;
+
+    updateOccupancy(toSquare, movingSide, false);
+    updateOccupancy(fromSquare, movingSide, true);
+
+    clearMailboxSquare(toSquare);
+    updateMailbox(fromSquare, originalPieceType);
+
+    if (historyEntry.capturedPieceType != -1) {
+        const int capturedColor = historyEntry.capturedPieceColor;
+        const int capturedType = historyEntry.capturedPieceType;
+        const int capturedSquare = historyEntry.capturedSquare;
+        const uint64_t capturedMask = (1ULL << capturedSquare);
+
+        pieceBoards[capturedColor][capturedType] |= capturedMask;
+        updateOccupancy(capturedSquare, capturedColor, true);
+        updateMailbox(capturedSquare, capturedType);
+        addPieceToList(capturedColor, capturedType, capturedSquare);
     }
 
-    void BoardState::makeMove(Move move) {
-        const int fromSquare = move.startSquare();
-        const int toSquare = move.targetSquare();
+    if (move.isPromotion()) {
+        removePieceFromList(movingSide, pieceAtDestination, toSquare);
+        addPieceToList(movingSide, originalPieceType, fromSquare);
+    } else {
+        updatePieceList(movingSide, originalPieceType, toSquare, fromSquare);
+    }
 
-        const uint64_t fromMask = (1ULL << fromSquare);
-        const uint64_t toMask = (1ULL << toSquare);
-        const int toIndex120 = toMailboxIndex(toSquare);
-
-        const int pieceType = getPieceTypeAt(fromSquare);
-        if (pieceType < 0) {
-            return;
-        }
-
-        int capturedType = -1;
-        int capturedColor = -1;
-        int capturedSquare = toSquare;
-
-        const bool isEnPassant = (move.flag() == Move::Flag::EnPassantCapture);
-        if (isEnPassant && pieceType == PIECE_PAWN) {
-            capturedSquare = toSquare + ((side == COLOR_WHITE) ? -8 : 8);
-            const int capType = getPieceTypeAt(capturedSquare);
-            const int capColor = getColorAt(capturedSquare);
-            if (capType == PIECE_PAWN && capColor == (side ^ 1)) {
-                capturedType = capType;
-                capturedColor = capColor;
-            }
-        } else if (mainBoard & toMask) {
-            capturedType = mailbox[toIndex120];
-            capturedColor = getColorAt(toSquare);
-        }
-
-        MoveHistoryEntry historyEntry;
-        historyEntry.move = move;
-        historyEntry.capturedPieceType = capturedType;
-        historyEntry.capturedPieceColor = capturedColor;
-        historyEntry.capturedSquare = (capturedType != -1) ? capturedSquare : -1;
-        historyEntry.previousSide = side;
-        historyEntry.previousEnPas = enPas;
-        historyEntry.previousFiftyMove = fiftyMove;
-        historyEntry.previousCastleRights = castleRights;
-        historyEntry.previousPosKey = posKey;
-        historyEntry.previousInCheck[0] = inCheck[0];
-        historyEntry.previousInCheck[1] = inCheck[1];
-
+    if (originalPieceType == PIECE_KING) {
         const int fromFile = BoardRepresentation::FileIndex(fromSquare);
         const int toFile = BoardRepresentation::FileIndex(toSquare);
         const int fromRank = BoardRepresentation::RankIndex(fromSquare);
-        const int toRank = BoardRepresentation::RankIndex(toSquare);
 
-        if (capturedType != -1) {
-            const uint64_t captureMask = (1ULL << capturedSquare);
-            pieceBoards[capturedColor][capturedType] &= ~captureMask;
-            updateOccupancy(capturedSquare, capturedColor, false);
-            clearMailboxSquare(capturedSquare);
-            removePieceFromList(capturedColor, capturedType, capturedSquare);
+        if (toFile - fromFile == 2) {
+            const int rookFromSq = BoardRepresentation::IndexFromCoord(5, fromRank);
+            const int rookToSq = BoardRepresentation::IndexFromCoord(7, fromRank);
+            const uint64_t rookFromMask = (1ULL << rookFromSq);
+            const uint64_t rookToMask = (1ULL << rookToSq);
+
+            pieceBoards[movingSide][PIECE_ROOK] &= ~rookFromMask;
+            pieceBoards[movingSide][PIECE_ROOK] |= rookToMask;
+            updateOccupancy(rookFromSq, movingSide, false);
+            updateOccupancy(rookToSq, movingSide, true);
+            clearMailboxSquare(rookFromSq);
+            updateMailbox(rookToSq, PIECE_ROOK);
+            updatePieceList(movingSide, PIECE_ROOK, rookFromSq, rookToSq);
+        } else if (fromFile - toFile == 2) {
+            const int rookFromSq = BoardRepresentation::IndexFromCoord(3, fromRank);
+            const int rookToSq = BoardRepresentation::IndexFromCoord(0, fromRank);
+            const uint64_t rookFromMask = (1ULL << rookFromSq);
+            const uint64_t rookToMask = (1ULL << rookToSq);
+
+            pieceBoards[movingSide][PIECE_ROOK] &= ~rookFromMask;
+            pieceBoards[movingSide][PIECE_ROOK] |= rookToMask;
+            updateOccupancy(rookFromSq, movingSide, false);
+            updateOccupancy(rookToSq, movingSide, true);
+            clearMailboxSquare(rookFromSq);
+            updateMailbox(rookToSq, PIECE_ROOK);
+            updatePieceList(movingSide, PIECE_ROOK, rookFromSq, rookToSq);
         }
-
-        int finalPieceType = pieceType;
-        if (move.isPromotion()) {
-            finalPieceType = move.promotionPieceType();
-        }
-
-        pieceBoards[side][pieceType] &= ~fromMask;
-        pieceBoards[side][finalPieceType] |= toMask;
-
-        updateOccupancy(fromSquare, side, false);
-        updateOccupancy(toSquare, side, true);
-
-        clearMailboxSquare(fromSquare);
-        updateMailbox(toSquare, finalPieceType);
-
-        updateCastlingRights(pieceType, fromFile, fromRank, capturedType, toFile, toRank);
-        updateEnPassantSquare(fromSquare, toSquare, pieceType);
-
-        fiftyMove++;
-        if (pieceType == PIECE_PAWN || capturedType != -1) {
-            fiftyMove = 0;
-        }
-
-        side ^= 1;
-        hisPly++;
-
-        if (move.isPromotion()) {
-            removePieceFromList(side ^ 1, pieceType, fromSquare);
-            addPieceToList(side ^ 1, finalPieceType, toSquare);
-        } else {
-            updatePieceList(side ^ 1, pieceType, fromSquare, toSquare);
-        }
-
-        if (pieceType == PIECE_KING) {
-            if (toFile - fromFile == 2) {
-                const int rookFromSq = BoardRepresentation::IndexFromCoord(7, fromRank);
-                const int rookToSq = BoardRepresentation::IndexFromCoord(5, fromRank);
-                const uint64_t rookFromMask = (1ULL << rookFromSq);
-                const uint64_t rookToMask = (1ULL << rookToSq);
-                const int rookColor = side ^ 1;
-                pieceBoards[rookColor][PIECE_ROOK] &= ~rookFromMask;
-                pieceBoards[rookColor][PIECE_ROOK] |= rookToMask;
-                updateOccupancy(rookFromSq, rookColor, false);
-                updateOccupancy(rookToSq, rookColor, true);
-                clearMailboxSquare(rookFromSq);
-                updateMailbox(rookToSq, PIECE_ROOK);
-                updatePieceList(rookColor, PIECE_ROOK, rookFromSq, rookToSq);
-            } else if (fromFile - toFile == 2) {
-                const int rookFromSq = BoardRepresentation::IndexFromCoord(0, fromRank);
-                const int rookToSq = BoardRepresentation::IndexFromCoord(3, fromRank);
-                const uint64_t rookFromMask = (1ULL << rookFromSq);
-                const uint64_t rookToMask = (1ULL << rookToSq);
-                const int rookColor = side ^ 1;
-                pieceBoards[rookColor][PIECE_ROOK] &= ~rookFromMask;
-                pieceBoards[rookColor][PIECE_ROOK] |= rookToMask;
-                updateOccupancy(rookFromSq, rookColor, false);
-                updateOccupancy(rookToSq, rookColor, true);
-                clearMailboxSquare(rookFromSq);
-                updateMailbox(rookToSq, PIECE_ROOK);
-                updatePieceList(rookColor, PIECE_ROOK, rookFromSq, rookToSq);
-            }
-        }
-
-        posKey = generatePosKey();
-        moveHistory.push_back(historyEntry);
     }
 
-    bool BoardState::unmakeMove() {
-        if (moveHistory.empty()) {
-            std::cout << "BoardState::unmakeMove: No moves to undo\n";
-            return false;
-        }
+    side = historyEntry.previousSide;
+    enPas = historyEntry.previousEnPas;
+    fiftyMove = historyEntry.previousFiftyMove;
+    castleRights = historyEntry.previousCastleRights;
+    inCheck[0] = historyEntry.previousInCheck[0];
+    inCheck[1] = historyEntry.previousInCheck[1];
+    hisPly--;
 
-        const MoveHistoryEntry& historyEntry = moveHistory.back();
+    posKey = historyEntry.previousPosKey;
+    moveHistory.pop_back();
 
-        if (historyEntry.isNullMove) {
-            side = historyEntry.previousSide;
-            enPas = historyEntry.previousEnPas;
-            posKey = historyEntry.previousPosKey;
-            inCheck[0] = historyEntry.previousInCheck[0];
-            inCheck[1] = historyEntry.previousInCheck[1];
-            moveHistory.pop_back();
-            return true;
-        }
+    return true;
+}
 
-        const Move move = historyEntry.move;
+void BoardState::makeNullMove() {
+    MoveHistoryEntry historyEntry;
+    historyEntry.isNullMove = true;
+    historyEntry.previousSide = side;
+    historyEntry.previousEnPas = enPas;
+    historyEntry.previousPosKey = posKey;
+    historyEntry.previousInCheck[0] = inCheck[0];
+    historyEntry.previousInCheck[1] = inCheck[1];
 
-        const int fromSquare = move.startSquare();
-        const int toSquare = move.targetSquare();
-        const uint64_t fromMask = (1ULL << fromSquare);
-        const uint64_t toMask = (1ULL << toSquare);
-
-        const int movingSide = historyEntry.previousSide;
-
-        const int pieceAtDestination = getPieceTypeAt(toSquare);
-        if (pieceAtDestination < 0) {
-            std::cout << "BoardState::unmakeMove: No piece at destination square\n";
-            return false;
-        }
-
-        const int originalPieceType = move.isPromotion() ? PIECE_PAWN : pieceAtDestination;
-
-        pieceBoards[movingSide][pieceAtDestination] &= ~toMask;
-        pieceBoards[movingSide][originalPieceType] |= fromMask;
-
-        updateOccupancy(toSquare, movingSide, false);
-        updateOccupancy(fromSquare, movingSide, true);
-
-        clearMailboxSquare(toSquare);
-        updateMailbox(fromSquare, originalPieceType);
-
-        if (historyEntry.capturedPieceType != -1) {
-            const int capturedColor = historyEntry.capturedPieceColor;
-            const int capturedType = historyEntry.capturedPieceType;
-            const int capturedSquare = historyEntry.capturedSquare;
-            const uint64_t capturedMask = (1ULL << capturedSquare);
-
-            pieceBoards[capturedColor][capturedType] |= capturedMask;
-            updateOccupancy(capturedSquare, capturedColor, true);
-            updateMailbox(capturedSquare, capturedType);
-            addPieceToList(capturedColor, capturedType, capturedSquare);
-        }
-
-        if (move.isPromotion()) {
-            removePieceFromList(movingSide, pieceAtDestination, toSquare);
-            addPieceToList(movingSide, originalPieceType, fromSquare);
-        } else {
-            updatePieceList(movingSide, originalPieceType, toSquare, fromSquare);
-        }
-
-        if (originalPieceType == PIECE_KING) {
-            const int fromFile = BoardRepresentation::FileIndex(fromSquare);
-            const int toFile = BoardRepresentation::FileIndex(toSquare);
-            const int fromRank = BoardRepresentation::RankIndex(fromSquare);
-
-            if (toFile - fromFile == 2) {
-                const int rookFromSq = BoardRepresentation::IndexFromCoord(5, fromRank);
-                const int rookToSq = BoardRepresentation::IndexFromCoord(7, fromRank);
-                const uint64_t rookFromMask = (1ULL << rookFromSq);
-                const uint64_t rookToMask = (1ULL << rookToSq);
-
-                pieceBoards[movingSide][PIECE_ROOK] &= ~rookFromMask;
-                pieceBoards[movingSide][PIECE_ROOK] |= rookToMask;
-                updateOccupancy(rookFromSq, movingSide, false);
-                updateOccupancy(rookToSq, movingSide, true);
-                clearMailboxSquare(rookFromSq);
-                updateMailbox(rookToSq, PIECE_ROOK);
-                updatePieceList(movingSide, PIECE_ROOK, rookFromSq, rookToSq);
-            } else if (fromFile - toFile == 2) {
-                const int rookFromSq = BoardRepresentation::IndexFromCoord(3, fromRank);
-                const int rookToSq = BoardRepresentation::IndexFromCoord(0, fromRank);
-                const uint64_t rookFromMask = (1ULL << rookFromSq);
-                const uint64_t rookToMask = (1ULL << rookToSq);
-
-                pieceBoards[movingSide][PIECE_ROOK] &= ~rookFromMask;
-                pieceBoards[movingSide][PIECE_ROOK] |= rookToMask;
-                updateOccupancy(rookFromSq, movingSide, false);
-                updateOccupancy(rookToSq, movingSide, true);
-                clearMailboxSquare(rookFromSq);
-                updateMailbox(rookToSq, PIECE_ROOK);
-                updatePieceList(movingSide, PIECE_ROOK, rookFromSq, rookToSq);
-            }
-        }
-
-        side = historyEntry.previousSide;
-        enPas = historyEntry.previousEnPas;
-        fiftyMove = historyEntry.previousFiftyMove;
-        castleRights = historyEntry.previousCastleRights;
-        inCheck[0] = historyEntry.previousInCheck[0];
-        inCheck[1] = historyEntry.previousInCheck[1];
-        hisPly--;
-
-        posKey = historyEntry.previousPosKey;
-        moveHistory.pop_back();
-
-        return true;
+    if (enPas >= 0 && enPas < 64) {
+        const int epFile = BoardRepresentation::FileIndex(enPas);
+        posKey ^= zobristKeys.getPieceKey(0, epFile);
     }
+    enPas = -1;
 
-    void BoardState::makeNullMove() {
-        MoveHistoryEntry historyEntry;
-        historyEntry.isNullMove = true;
-        historyEntry.previousSide = side;
-        historyEntry.previousEnPas = enPas;
-        historyEntry.previousPosKey = posKey;
-        historyEntry.previousInCheck[0] = inCheck[0];
-        historyEntry.previousInCheck[1] = inCheck[1];
+    side ^= 1;
+    posKey ^= zobristKeys.getSideKey();
 
-        if (enPas >= 0 && enPas < 64) {
-            const int epFile = BoardRepresentation::FileIndex(enPas);
-            posKey ^= zobristKeys.getPieceKey(0, epFile);
-        }
-        enPas = -1;
+    moveHistory.push_back(historyEntry);
+}
 
-        side ^= 1;
-        posKey ^= zobristKeys.getSideKey();
+bool BoardState::unmakeNullMove() { return unmakeMove(); }
 
-        moveHistory.push_back(historyEntry);
-    }
+uint64_t BoardState::generatePosKey() const {
+    uint64_t finalKey = 0ULL;
 
-    bool BoardState::unmakeNullMove() {
-        return unmakeMove();
-    }
-
-    uint64_t BoardState::generatePosKey() const {
-        uint64_t finalKey = 0ULL;
-
-        for (int color = 0; color < 2; ++color) {
-            for (int type = 0; type < 6; ++type) {
-                uint64_t board = pieceBoards[color][type];
-                const int pieceIndex = color * 6 + type + 1;
-
-                while (board) {
-                    const int sq64 = static_cast<int>(getLSB(board));
-                    const int sq120 = toMailboxIndex(sq64);
-                    finalKey ^= zobristKeys.getPieceKey(pieceIndex, sq120);
-                    board &= (board - 1);
-                }
-            }
-        }
-
-        if (side == COLOR_WHITE) {
-            finalKey ^= zobristKeys.getSideKey();
-        }
-
-        finalKey ^= zobristKeys.getCastleKey(castleRights);
-
-        if (enPas >= 0 && enPas < 64) {
-            const int epFile = BoardRepresentation::FileIndex(enPas);
-            finalKey ^= zobristKeys.getPieceKey(0, epFile);
-        }
-
-        return finalKey;
-    }
-
-    bool BoardState::checkBoard() const {
-        for (int color = 0; color < 2; ++color) {
-            for (int type = 0; type < 6; ++type) {
-                uint64_t board = pieceBoards[color][type];
-                while (board) {
-                    const int sq64 = static_cast<int>(getLSB(board));
-                    const int sq120 = toMailboxIndex(sq64);
-                    if (mailbox[sq120] != type) {
-                        return false;
-                    }
-                    board &= (board - 1);
-                }
-            }
-        }
-
-        uint64_t calcWhite = 0, calcBlack = 0;
+    for (int color = 0; color < 2; ++color) {
         for (int type = 0; type < 6; ++type) {
-            calcWhite |= pieceBoards[COLOR_WHITE][type];
-            calcBlack |= pieceBoards[COLOR_BLACK][type];
-        }
-        if (calcWhite != whitePieces || calcBlack != blackPieces) {
-            return false;
-        }
-        if ((whitePieces | blackPieces) != mainBoard) {
-            return false;
-        }
+            uint64_t board = pieceBoards[color][type];
+            const int pieceIndex = color * 6 + type + 1;
 
-        for (int color = 0; color < 2; ++color) {
-            for (int type = 0; type < 6; ++type) {
-                const PieceList& list = pieceLists[color][type];
-                uint64_t board = pieceBoards[color][type];
+            while (board) {
+                const int sq64 = static_cast<int>(getLSB(board));
+                const int sq120 = toMailboxIndex(sq64);
+                finalKey ^= zobristKeys.getPieceKey(pieceIndex, sq120);
+                board &= (board - 1);
+            }
+        }
+    }
 
-                if (popCount(board) != list.count()) {
+    if (side == COLOR_WHITE) {
+        finalKey ^= zobristKeys.getSideKey();
+    }
+
+    finalKey ^= zobristKeys.getCastleKey(castleRights);
+
+    if (enPas >= 0 && enPas < 64) {
+        const int epFile = BoardRepresentation::FileIndex(enPas);
+        finalKey ^= zobristKeys.getPieceKey(0, epFile);
+    }
+
+    return finalKey;
+}
+
+bool BoardState::checkBoard() const {
+    for (int color = 0; color < 2; ++color) {
+        for (int type = 0; type < 6; ++type) {
+            uint64_t board = pieceBoards[color][type];
+            while (board) {
+                const int sq64 = static_cast<int>(getLSB(board));
+                const int sq120 = toMailboxIndex(sq64);
+                if (mailbox[sq120] != type) {
                     return false;
                 }
-
-                while (board) {
-                    const int sq64 = static_cast<int>(getLSB(board));
-                    if (!list.contains(sq64)) {
-                        return false;
-                    }
-                    board &= (board - 1);
-                }
+                board &= (board - 1);
             }
         }
+    }
 
-        if (whitePieces & blackPieces) {
-            return false;
+    uint64_t calcWhite = 0, calcBlack = 0;
+    for (int type = 0; type < 6; ++type) {
+        calcWhite |= pieceBoards[COLOR_WHITE][type];
+        calcBlack |= pieceBoards[COLOR_BLACK][type];
+    }
+    if (calcWhite != whitePieces || calcBlack != blackPieces) {
+        return false;
+    }
+    if ((whitePieces | blackPieces) != mainBoard) {
+        return false;
+    }
+
+    for (int color = 0; color < 2; ++color) {
+        for (int type = 0; type < 6; ++type) {
+            const PieceList& list = pieceLists[color][type];
+            uint64_t board = pieceBoards[color][type];
+
+            if (popCount(board) != list.count()) {
+                return false;
+            }
+
+            while (board) {
+                const int sq64 = static_cast<int>(getLSB(board));
+                if (!list.contains(sq64)) {
+                    return false;
+                }
+                board &= (board - 1);
+            }
         }
+    }
 
+    if (whitePieces & blackPieces) {
+        return false;
+    }
+
+    return true;
+}
+
+void BoardState::loadFEN(const std::string& fen) { loadFENUtil(*this, fen); }
+
+std::string BoardState::getFEN() const { return toFENUtil(*this); }
+
+bool BoardState::isRepetition() const {
+    if (moveHistory.empty()) return false;
+
+    const int maxLookback = std::min(static_cast<int>(moveHistory.size()), fiftyMove);
+    int matches = 0;
+
+    // Count positions with same side to move (step by 2 to maintain alternation)
+    // This correctly detects 3-fold repetition only when positions are truly identical
+    for (int i = 2; i <= maxLookback; i += 2) {
+        const auto& entry = moveHistory[moveHistory.size() - i];
+        if (entry.previousPosKey == posKey) {
+            ++matches;
+            // 3-fold repetition: need 2 prior matches (making 3 total including current)
+            if (matches >= 2) {
+                LOG_DEBUG_F("[isRepetition] DETECTED: posKey=0x%llx matches=%d hisPly=%d", posKey, matches, hisPly);
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool BoardState::isInsufficientMaterial() const {
+    const int whitePawns = popCount(pieceBoards[COLOR_WHITE][PIECE_PAWN]);
+    const int blackPawns = popCount(pieceBoards[COLOR_BLACK][PIECE_PAWN]);
+    const int whiteRooks = popCount(pieceBoards[COLOR_WHITE][PIECE_ROOK]);
+    const int blackRooks = popCount(pieceBoards[COLOR_BLACK][PIECE_ROOK]);
+    const int whiteQueens = popCount(pieceBoards[COLOR_WHITE][PIECE_QUEEN]);
+    const int blackQueens = popCount(pieceBoards[COLOR_BLACK][PIECE_QUEEN]);
+
+    if ((whitePawns + blackPawns + whiteRooks + blackRooks + whiteQueens + blackQueens) > 0) {
+        return false;
+    }
+
+    const int whiteKnights = popCount(pieceBoards[COLOR_WHITE][PIECE_KNIGHT]);
+    const int blackKnights = popCount(pieceBoards[COLOR_BLACK][PIECE_KNIGHT]);
+    const int whiteBishops = popCount(pieceBoards[COLOR_WHITE][PIECE_BISHOP]);
+    const int blackBishops = popCount(pieceBoards[COLOR_BLACK][PIECE_BISHOP]);
+
+    auto hasMatingMaterial = [](int bishops, int knights) {
+        if (bishops >= 2) return true;
+        if (bishops >= 1 && knights >= 1) return true;
+        if (knights >= 3) return true;
+        return false;
+    };
+
+    return !hasMatingMaterial(whiteBishops, whiteKnights) && !hasMatingMaterial(blackBishops, blackKnights);
+}
+
+bool BoardState::hasNonPawnMaterial(int color) const {
+    const int knights = popCount(pieceBoards[color][PIECE_KNIGHT]);
+    const int bishops = popCount(pieceBoards[color][PIECE_BISHOP]);
+    const int rooks = popCount(pieceBoards[color][PIECE_ROOK]);
+    const int queens = popCount(pieceBoards[color][PIECE_QUEEN]);
+
+    if (knights + bishops + rooks + queens != 0) {
         return true;
     }
+    return false;
+}
 
-    void BoardState::loadFEN(const std::string& fen) {
-        loadFENUtil(*this, fen);
-    }
+void BoardState::printBoardState() {
+    auto pieceChar = [](int pieceType, int color) -> char {
+        switch (pieceType) {
+            case PIECE_KING: return color == COLOR_WHITE ? 'K' : 'k';
+            case PIECE_QUEEN: return color == COLOR_WHITE ? 'Q' : 'q';
+            case PIECE_ROOK: return color == COLOR_WHITE ? 'R' : 'r';
+            case PIECE_BISHOP: return color == COLOR_WHITE ? 'B' : 'b';
+            case PIECE_KNIGHT: return color == COLOR_WHITE ? 'N' : 'n';
+            case PIECE_PAWN: return color == COLOR_WHITE ? 'P' : 'p';
+            default: return '?';
+        }
+    };
 
-    std::string BoardState::getFEN() const {
-        return toFENUtil(*this);
-    }
-
-    bool BoardState::isRepetition() const {
-        if (moveHistory.empty()) return false;
-
-        const int maxLookback = std::min(static_cast<int>(moveHistory.size()), fiftyMove);
-        int matches = 0;
-
-        // Count positions with same side to move (step by 2 to maintain alternation)
-        // This correctly detects 3-fold repetition only when positions are truly identical
-        for (int i = 2; i <= maxLookback; i += 2) {
-            const auto& entry = moveHistory[moveHistory.size() - i];
-            if (entry.previousPosKey == posKey) {
-                ++matches;
-                // 3-fold repetition: need 2 prior matches (making 3 total including current)
-                if (matches >= 2) {
-                    LOG_DEBUG_F("[isRepetition] DETECTED: posKey=0x%llx matches=%d hisPly=%d", posKey, matches, hisPly);
-                    return true;
-                }
+    std::cout << "\n=== Board State ===\n";
+    for (int rank = 7; rank >= 0; --rank) {
+        std::cout << (rank + 1) << " ";
+        for (int file = 0; file < 8; ++file) {
+            const int sq = BoardRepresentation::IndexFromCoord(file, rank);
+            const int type = getPieceTypeAt(sq);
+            if (type < 0) {
+                std::cout << ". ";
+            } else {
+                const int color = getColorAt(sq);
+                std::cout << pieceChar(type, color) << ' ';
             }
-        }
-
-        return false;
-    }
-
-    bool BoardState::isInsufficientMaterial() const {
-        const int whitePawns = popCount(pieceBoards[COLOR_WHITE][PIECE_PAWN]);
-        const int blackPawns = popCount(pieceBoards[COLOR_BLACK][PIECE_PAWN]);
-        const int whiteRooks = popCount(pieceBoards[COLOR_WHITE][PIECE_ROOK]);
-        const int blackRooks = popCount(pieceBoards[COLOR_BLACK][PIECE_ROOK]);
-        const int whiteQueens = popCount(pieceBoards[COLOR_WHITE][PIECE_QUEEN]);
-        const int blackQueens = popCount(pieceBoards[COLOR_BLACK][PIECE_QUEEN]);
-
-        if ((whitePawns + blackPawns + whiteRooks + blackRooks + whiteQueens + blackQueens) > 0) {
-            return false;
-        }
-
-        const int whiteKnights = popCount(pieceBoards[COLOR_WHITE][PIECE_KNIGHT]);
-        const int blackKnights = popCount(pieceBoards[COLOR_BLACK][PIECE_KNIGHT]);
-        const int whiteBishops = popCount(pieceBoards[COLOR_WHITE][PIECE_BISHOP]);
-        const int blackBishops = popCount(pieceBoards[COLOR_BLACK][PIECE_BISHOP]);
-
-        auto hasMatingMaterial = [](int bishops, int knights) {
-            if (bishops >= 2) return true;
-            if (bishops >= 1 && knights >= 1) return true;
-            if (knights >= 3) return true;
-            return false;
-        };
-
-        return !hasMatingMaterial(whiteBishops, whiteKnights)
-            && !hasMatingMaterial(blackBishops, blackKnights);
-    }
-
-    bool BoardState::hasNonPawnMaterial(int color) const {
-        const int knights = popCount(pieceBoards[color][PIECE_KNIGHT]);
-        const int bishops = popCount(pieceBoards[color][PIECE_BISHOP]);
-        const int rooks   = popCount(pieceBoards[color][PIECE_ROOK]);
-        const int queens  = popCount(pieceBoards[color][PIECE_QUEEN]);
-
-        if (knights + bishops + rooks + queens != 0) {
-            return true;
-        }
-        return false;
-    }
-
-    void BoardState::printBoardState() {
-        auto pieceChar = [](int pieceType, int color) -> char {
-            switch (pieceType) {
-                case PIECE_KING:   return color == COLOR_WHITE ? 'K' : 'k';
-                case PIECE_QUEEN:  return color == COLOR_WHITE ? 'Q' : 'q';
-                case PIECE_ROOK:   return color == COLOR_WHITE ? 'R' : 'r';
-                case PIECE_BISHOP: return color == COLOR_WHITE ? 'B' : 'b';
-                case PIECE_KNIGHT: return color == COLOR_WHITE ? 'N' : 'n';
-                case PIECE_PAWN:   return color == COLOR_WHITE ? 'P' : 'p';
-                default:           return '?';
-            }
-        };
-
-        std::cout << "\n=== Board State ===\n";
-        for (int rank = 7; rank >= 0; --rank) {
-            std::cout << (rank + 1) << " ";
-            for (int file = 0; file < 8; ++file) {
-                const int sq = BoardRepresentation::IndexFromCoord(file, rank);
-                const int type = getPieceTypeAt(sq);
-                if (type < 0) {
-                    std::cout << ". ";
-                } else {
-                    const int color = getColorAt(sq);
-                    std::cout << pieceChar(type, color) << ' ';
-                }
-            }
-            std::cout << '\n';
-        }
-        std::cout << "  a b c d e f g h\n";
-
-        std::cout << "Side to move: " << (side == COLOR_WHITE ? "White" : "Black") << '\n';
-        std::cout << "Castling rights: ";
-        if (castleRights == 0) {
-            std::cout << '-';
-        } else {
-            if (castleRights & 0x01) std::cout << 'K';
-            if (castleRights & 0x02) std::cout << 'Q';
-            if (castleRights & 0x04) std::cout << 'k';
-            if (castleRights & 0x08) std::cout << 'q';
         }
         std::cout << '\n';
-        std::cout << "En passant: "
-                  << (enPas >= 0 ? BoardRepresentation::SquareNameFromIndex(enPas) : "-")
-                  << '\n';
-        std::cout << "Halfmove clock: " << fiftyMove << '\n';
-        std::cout << "History ply: " << hisPly << '\n';
-        std::cout << "FEN: " << getFEN() << '\n';
+    }
+    std::cout << "  a b c d e f g h\n";
+
+    std::cout << "Side to move: " << (side == COLOR_WHITE ? "White" : "Black") << '\n';
+    std::cout << "Castling rights: ";
+    if (castleRights == 0) {
+        std::cout << '-';
+    } else {
+        if (castleRights & 0x01) std::cout << 'K';
+        if (castleRights & 0x02) std::cout << 'Q';
+        if (castleRights & 0x04) std::cout << 'k';
+        if (castleRights & 0x08) std::cout << 'q';
+    }
+    std::cout << '\n';
+    std::cout << "En passant: " << (enPas >= 0 ? BoardRepresentation::SquareNameFromIndex(enPas) : "-") << '\n';
+    std::cout << "Halfmove clock: " << fiftyMove << '\n';
+    std::cout << "History ply: " << hisPly << '\n';
+    std::cout << "FEN: " << getFEN() << '\n';
+}
+
+void BoardState::printMoveHistory() {
+    std::cout << "\n=== Move History (" << moveHistory.size() << " moves) ===\n";
+    if (moveHistory.empty()) {
+        std::cout << "<empty>\n";
+        return;
     }
 
-    void BoardState::printMoveHistory() {
-        std::cout << "\n=== Move History (" << moveHistory.size() << " moves) ===\n";
-        if (moveHistory.empty()) {
-            std::cout << "<empty>\n";
-            return;
+    for (std::size_t i = 0; i < moveHistory.size(); ++i) {
+        const Move& m = moveHistory[i].move;
+        std::cout << (i + 1) << ". " << m.toString();
+        if (m.isPromotion()) {
+            std::cout << " (promotion)";
         }
-
-        for (std::size_t i = 0; i < moveHistory.size(); ++i) {
-            const Move& m = moveHistory[i].move;
-            std::cout << (i + 1) << ". " << m.toString();
-            if (m.isPromotion()) {
-                std::cout << " (promotion)";
-            }
-            if (moveHistory[i].capturedPieceType != -1) {
-                std::cout << " (capture)";
-            }
-            std::cout << '\n';
+        if (moveHistory[i].capturedPieceType != -1) {
+            std::cout << " (capture)";
         }
+        std::cout << '\n';
     }
+}
 }  // namespace Chess

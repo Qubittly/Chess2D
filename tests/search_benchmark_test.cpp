@@ -1,30 +1,26 @@
-#include "search.h"
-#include "board_state.h"
-#include "move_generator.h"
-#include "precomp_move_data.h"
-#include "magics.h"
-#include "profiler.h"
-#include "logger.h"
-
+#include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <random>
 #include <string>
 #include <vector>
-#include <cstdlib>
-#include <algorithm>
-#include <random>
+
+#include "board_state.h"
+#include "logger.h"
+#include "magics.h"
+#include "move_generator.h"
+#include "precomp_move_data.h"
+#include "profiler.h"
+#include "search.h"
 
 namespace {
 
 std::string findFenFile() {
-    const std::vector<std::string> candidates = {
-        "tests/Test Positions/Fens.txt",
-        "../tests/Test Positions/Fens.txt",
-        "../../tests/Test Positions/Fens.txt",
-        "../../../tests/Test Positions/Fens.txt"
-    };
+    const std::vector<std::string> candidates = { "tests/Test Positions/Fens.txt", "../tests/Test Positions/Fens.txt",
+                                                  "../../tests/Test Positions/Fens.txt", "../../../tests/Test Positions/Fens.txt" };
 
     for (const auto& candidate : candidates) {
         if (std::filesystem::exists(candidate)) {
@@ -60,7 +56,7 @@ bool isMoveLegal(const Chess::BoardState& board, const Chess::Move& move) {
     return false;
 }
 
-}
+}  // namespace
 
 int main(int argc, char** argv) {
     using namespace Chess;

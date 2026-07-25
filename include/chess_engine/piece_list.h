@@ -1,6 +1,6 @@
 /*
  * Piece List
- * 
+ *
  * Maintains a list of squares occupied by pieces of a particular type and color.
  * This allows for efficient iteration over all pieces of a given type without
  * needing to iterate through the entire bitboard.
@@ -13,36 +13,36 @@
 
 namespace Chess {
 
-    class PieceList {
-    private:
-        std::vector<int> squares;
+class PieceList {
+private:
+    std::vector<int> squares;
 
-    public:
-        PieceList() = default;
+public:
+    PieceList() = default;
 
-        // Get the number of pieces in this list
-        int count() const;
+    // Get the number of pieces in this list
+    int count() const;
 
-        // Add a piece at the given square
-        void add(int square);
+    // Add a piece at the given square
+    void add(int square);
 
-        // Remove a piece from the given square
-        void remove(int square);
+    // Remove a piece from the given square
+    void remove(int square);
 
-        // Move a piece from one square to another
-        void move(int fromSquare, int toSquare);
-        
-        bool contains(int square) const;
+    // Move a piece from one square to another
+    void move(int fromSquare, int toSquare);
 
-        // Clear all pieces from this list
-        void clear();
+    bool contains(int square) const;
 
-        // Get the underlying vector (for iteration)
-        const std::vector<int>& getSquares() const;
+    // Clear all pieces from this list
+    void clear();
 
-        // Direct access to squares by index
-        int operator[](int index) const;
-    };
+    // Get the underlying vector (for iteration)
+    const std::vector<int>& getSquares() const;
+
+    // Direct access to squares by index
+    int operator[](int index) const;
+};
 
 }  // namespace Chess
 #endif  // PIECE_LIST_H

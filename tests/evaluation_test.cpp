@@ -1,10 +1,12 @@
 #include "evaluation.h"
-#include "board_state.h"
-#include "precomp_move_data.h"
-#include "magics.h"
 
 #include <iostream>
 #include <string>
+
+#include "board_state.h"
+#include "magics.h"
+#include "precomp_move_data.h"
+
 
 namespace {
 
@@ -22,9 +24,7 @@ struct TablesBreakdown {
     int material = 0;
     int pst = 0;
 
-    int total() const {
-        return material + pst;
-    }
+    int total() const { return material + pst; }
 };
 
 TablesBreakdown calculateManualTables(const Chess::BoardState& board, const Chess::Evaluation& eval) {
@@ -66,7 +66,7 @@ Chess::Evaluation makeEvaluationFromFen(const std::string& fen, Chess::BoardStat
     return Chess::Evaluation(board);
 }
 
-}
+}  // namespace
 
 int main() {
     using namespace Chess;
@@ -191,7 +191,7 @@ int main() {
         std::cout << "White pawn table at a2 = " << whitePawnTable[BoardRepresentation::a2] << '\n';
         std::cout << "Black pawn table at a7 = " << blackPawnTable[BoardRepresentation::a7] << '\n';
         ok &= expectEqual(whitePawnTable[BoardRepresentation::a2], blackPawnTable[BoardRepresentation::a7],
-            "White/Black pawn table orientation should mirror correctly");
+                          "White/Black pawn table orientation should mirror correctly");
     }
 
     {
@@ -214,10 +214,9 @@ int main() {
         std::cout << "Evaluate() - EvaluateTables() - EvaluateMobility() - MopUpEval() = " << castlingAndRookComponent << '\n';
 
         ok &= expectEqual(eval.getGamePhase(), 8, "Expected phase for this setup should be 8");
-        ok &= expectEqual(castlingAndRookComponent, castlingEval,
-            "Indirect castling component should match direct castling evaluation");
-        ok &= expectEqual(castlingEval, 0,
-            "With both sides having no castling rights at home king squares, castling component should be 0");
+        ok &= expectEqual(castlingAndRookComponent, castlingEval, "Indirect castling component should match direct castling evaluation");
+        ok &=
+            expectEqual(castlingEval, 0, "With both sides having no castling rights at home king squares, castling component should be 0");
     }
 
     {
@@ -249,8 +248,7 @@ int main() {
         std::cout << "EvaluateMobility() with knight on d4 = " << centerMob << '\n';
         std::cout << "EvaluateMobility() with knight on a8 = " << cornerMob << '\n';
 
-        ok &= expectTrue(centerMob > cornerMob,
-            "Centralized knight should score higher mobility than corner knight");
+        ok &= expectTrue(centerMob > cornerMob, "Centralized knight should score higher mobility than corner knight");
     }
 
     {
@@ -266,8 +264,7 @@ int main() {
         std::cout << "EvaluateMobility() with black knight on h6 = " << h6Mob << '\n';
         std::cout << "EvaluateMobility() with black knight on g8 = " << g8Mob << '\n';
 
-        ok &= expectTrue(h6Mob < g8Mob,
-            "For white-minus-black mobility score, black knight h6 should be better for black than g8");
+        ok &= expectTrue(h6Mob < g8Mob, "For white-minus-black mobility score, black knight h6 should be better for black than g8");
     }
 
     if (!ok) {

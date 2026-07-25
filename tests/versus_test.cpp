@@ -1,21 +1,23 @@
-#include "search.h"
-#include "move_generator.h"
-#include "board_state.h"
-#include "precomp_move_data.h"
-#include "magics.h"
-#include "chess2D/board.h"
-#include "logger.h"
 #include <SDL3/SDL.h>
 
+#include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <memory>
+#include <random>
 #include <string>
 #include <vector>
-#include <cstdlib>
-#include <memory>
-#include <algorithm>
-#include <random>
+
+#include "board_state.h"
+#include "chess2D/board.h"
+#include "logger.h"
+#include "magics.h"
+#include "move_generator.h"
+#include "precomp_move_data.h"
+#include "search.h"
+
 
 namespace {
 
@@ -27,11 +29,7 @@ struct EngineConfig {
     int timeMs = 2000;
 };
 
-enum class GameResult {
-    WhiteWin,
-    BlackWin,
-    Draw
-};
+enum class GameResult { WhiteWin, BlackWin, Draw };
 
 struct MatchStats {
     int wins = 0;
@@ -45,18 +43,12 @@ struct MatchStats {
     int blackLosses = 0;
     int blackDraws = 0;
 
-    double points() const {
-        return static_cast<double>(wins) + 0.5 * static_cast<double>(draws);
-    }
+    double points() const { return static_cast<double>(wins) + 0.5 * static_cast<double>(draws); }
 };
 
 std::string findFenFile() {
-    const std::vector<std::string> candidates = {
-        "tests/Test Positions/Fens.txt",
-        "../tests/Test Positions/Fens.txt",
-        "../../tests/Test Positions/Fens.txt",
-        "../../../tests/Test Positions/Fens.txt"
-    };
+    const std::vector<std::string> candidates = { "tests/Test Positions/Fens.txt", "../tests/Test Positions/Fens.txt",
+                                                  "../../tests/Test Positions/Fens.txt", "../../../tests/Test Positions/Fens.txt" };
 
     for (const auto& candidate : candidates) {
         if (std::filesystem::exists(candidate)) {
@@ -86,14 +78,8 @@ std::vector<std::string> loadFens(const std::string& path, int maxPositions) {
     return fens;
 }
 
-GameResult playGame(const std::string& startFen,
-                    const EngineConfig& whiteCfg,
-                    const EngineConfig& blackCfg,
-                    int maxPlies,
-                    Chess::Board* guiBoard,
-                    SDL_Renderer* renderer,
-                    int renderDelayMs,
-                    bool& guiQuitRequested) {
+GameResult playGame(const std::string& startFen, const EngineConfig& whiteCfg, const EngineConfig& blackCfg, int maxPlies,
+                    Chess::Board* guiBoard, SDL_Renderer* renderer, int renderDelayMs, bool& guiQuitRequested) {
     using namespace Chess;
 
     BoardState board;
@@ -152,9 +138,8 @@ GameResult playGame(const std::string& startFen,
             return GameResult::Draw;
         }
 
-        LOG_DEBUG_F("[Versus] ply=%d side=%s engine=%s move=%s score=%d", ply,
-            board.getSide() == COLOR_WHITE ? "white" : "black",
-            cfg.name.c_str(), best.toString().c_str(), score);
+        LOG_DEBUG_F("[Versus] ply=%d side=%s engine=%s move=%s score=%d", ply, board.getSide() == COLOR_WHITE ? "white" : "black",
+                    cfg.name.c_str(), best.toString().c_str(), score);
 
         board.makeMove(best);
 
@@ -200,21 +185,26 @@ void applyResultFromPerspective(GameResult result, bool testEngineIsWhite, Match
 
 void applyResultWithColor(GameResult result, bool testEngineIsWhite, MatchStats& stats) {
     applyResultFromPerspective(result, testEngineIsWhite, stats);
-    
+
     if (result == GameResult::Draw) {
-        if (testEngineIsWhite) stats.whiteDraws++;
-        else stats.blackDraws++;
-    } else if ((result == GameResult::WhiteWin && testEngineIsWhite) ||
-               (result == GameResult::BlackWin && !testEngineIsWhite)) {
-        if (testEngineIsWhite) stats.whiteWins++;
-        else stats.blackWins++;
+        if (testEngineIsWhite)
+            stats.whiteDraws++;
+        else
+            stats.blackDraws++;
+    } else if ((result == GameResult::WhiteWin && testEngineIsWhite) || (result == GameResult::BlackWin && !testEngineIsWhite)) {
+        if (testEngineIsWhite)
+            stats.whiteWins++;
+        else
+            stats.blackWins++;
     } else {
-        if (testEngineIsWhite) stats.whiteLosses++;
-        else stats.blackLosses++;
+        if (testEngineIsWhite)
+            stats.whiteLosses++;
+        else
+            stats.blackLosses++;
     }
 }
 
-}
+}  // namespace
 
 int main(int argc, char** argv) {
     using namespace Chess;
@@ -259,8 +249,8 @@ int main(int argc, char** argv) {
     std::mt19937 g(rd());
     std::shuffle(fens.begin(), fens.end(), g);
 
-    EngineConfig oldEngine{"old_eval", EvaluationOptions{ false, false, false, false, false, false, 8 }, false, depth, 2000 };
-    EngineConfig newEngine{"new_eval", EvaluationOptions{ true, true, true, true, true, true, 8 }, false, depth, 2000};
+    EngineConfig oldEngine{ "old_eval", EvaluationOptions{ false, false, false, false, false, false, 8 }, false, depth, 2000 };
+    EngineConfig newEngine{ "new_eval", EvaluationOptions{ true, true, true, true, true, true, 8 }, false, depth, 2000 };
 
     MatchStats stats;
 
@@ -298,25 +288,25 @@ int main(int argc, char** argv) {
     int gameIndex = 1;
     for (const auto& fen : fens) {
         bool quit1 = false;
-        const GameResult g1 = playGame(fen, newEngine, oldEngine, maxPlies,
-            renderGui ? guiBoard.get() : nullptr, 
-            renderGui ? renderer : nullptr, 
-            renderDelayMs, quit1);
+        const GameResult g1 = playGame(fen, newEngine, oldEngine, maxPlies, renderGui ? guiBoard.get() : nullptr,
+                                       renderGui ? renderer : nullptr, renderDelayMs, quit1);
         applyResultWithColor(g1, true, stats);
         std::cout << "Game " << gameIndex++ << " (new as White): "
-                  << (g1 == GameResult::WhiteWin ? "1-0" : g1 == GameResult::BlackWin ? "0-1" : "1/2-1/2")
+                  << (g1 == GameResult::WhiteWin ? "1-0" :
+                      g1 == GameResult::BlackWin ? "0-1" :
+                                                   "1/2-1/2")
                   << '\n';
 
         if (quit1) break;
 
         bool quit2 = false;
-        const GameResult g2 = playGame(fen, oldEngine, newEngine, maxPlies,
-            renderGui ? guiBoard.get() : nullptr, 
-            renderGui ? renderer : nullptr, 
-            renderDelayMs, quit2);
+        const GameResult g2 = playGame(fen, oldEngine, newEngine, maxPlies, renderGui ? guiBoard.get() : nullptr,
+                                       renderGui ? renderer : nullptr, renderDelayMs, quit2);
         applyResultWithColor(g2, false, stats);
         std::cout << "Game " << gameIndex++ << " (new as Black): "
-                  << (g2 == GameResult::WhiteWin ? "1-0" : g2 == GameResult::BlackWin ? "0-1" : "1/2-1/2")
+                  << (g2 == GameResult::WhiteWin ? "1-0" :
+                      g2 == GameResult::BlackWin ? "0-1" :
+                                                   "1/2-1/2")
                   << '\n';
 
         if (quit2) break;
@@ -329,17 +319,19 @@ int main(int argc, char** argv) {
     std::cout << "Losses: " << stats.losses << '\n';
     std::cout << "Draws:  " << stats.draws << '\n';
     std::cout << "Score:  " << stats.points() << " / " << totalGames << '\n';
-    
+
     std::cout << "\nAs White:  " << stats.whiteWins << "W " << stats.whiteLosses << "L " << stats.whiteDraws << "D\n";
     std::cout << "As Black:  " << stats.blackWins << "W " << stats.blackLosses << "L " << stats.blackDraws << "D\n";
-    
+
     const double whiteScore = stats.whiteWins + 0.5 * stats.whiteDraws;
     const double blackScore = stats.blackWins + 0.5 * stats.blackDraws;
     const int whiteGames = stats.whiteWins + stats.whiteLosses + stats.whiteDraws;
     const int blackGames = stats.blackWins + stats.blackLosses + stats.blackDraws;
-    
-    std::cout << "\nAs White:  " << (whiteGames > 0 ? whiteScore / whiteGames * 100.0 : 0.0) << "% (" << whiteScore << " / " << whiteGames << ")\n";
-    std::cout << "As Black:  " << (blackGames > 0 ? blackScore / blackGames * 100.0 : 0.0) << "% (" << blackScore << " / " << blackGames << ")\n";
+
+    std::cout << "\nAs White:  " << (whiteGames > 0 ? whiteScore / whiteGames * 100.0 : 0.0) << "% (" << whiteScore << " / " << whiteGames
+              << ")\n";
+    std::cout << "As Black:  " << (blackGames > 0 ? blackScore / blackGames * 100.0 : 0.0) << "% (" << blackScore << " / " << blackGames
+              << ")\n";
 
     guiBoard.reset();
     if (renderer) SDL_DestroyRenderer(renderer);

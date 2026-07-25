@@ -1,18 +1,19 @@
-#include "game_screen.h"
-
 #include <iostream>
 #include <string>
 
+#include "game_screen.h"
+
+
 // Usage:
-//   ./chess                          – start from the default position
-//   ./chess "<FEN string>"           – start from a custom FEN position
+//   ./chess                          ï¿½ start from the default position
+//   ./chess "<FEN string>"           ï¿½ start from a custom FEN position
 //
 // In-game keyboard shortcuts:
-//   R  – reset to starting position
-//   U  – undo the last move
-//   F  – flip the board (swap white / black perspective)
+//   R  ï¿½ reset to starting position
+//   U  ï¿½ undo the last move
+//   F  ï¿½ flip the board (swap white / black perspective)
 //   C  - Toggle Comp Player
-//   ESC – quit
+//   ESC ï¿½ quit
 //   1-6 to change themes and textures
 
 int main(int argc, char* argv[]) {
