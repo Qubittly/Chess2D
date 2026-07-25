@@ -38,7 +38,7 @@ namespace Chess {
         void makeMove(Move move);
         void unmakeMove();
 
-        bool      screenToBoardCoords(int screenX, int screenY, int& boardR, int& boardC) const;
+        bool screenToBoardCoords(int screenX, int screenY, int& boardR, int& boardC) const;
 
         bool isCheckMate(int color);
         bool isStaleMate(int color);

@@ -2,6 +2,7 @@
 #include "bitboard_util.h"
 #include "fen_util.h"
 #include "logger.h"
+#include "pieces.h"
 
 #include <iostream>
 
@@ -230,6 +231,8 @@ namespace Chess {
         historyEntry.previousFiftyMove = fiftyMove;
         historyEntry.previousCastleRights = castleRights;
         historyEntry.previousPosKey = posKey;
+        historyEntry.previousInCheck[0] = inCheck[0];
+        historyEntry.previousInCheck[1] = inCheck[1];
 
         const int fromFile = BoardRepresentation::FileIndex(fromSquare);
         const int toFile = BoardRepresentation::FileIndex(toSquare);
@@ -317,6 +320,17 @@ namespace Chess {
         }
 
         const MoveHistoryEntry& historyEntry = moveHistory.back();
+
+        if (historyEntry.isNullMove) {
+            side = historyEntry.previousSide;
+            enPas = historyEntry.previousEnPas;
+            posKey = historyEntry.previousPosKey;
+            inCheck[0] = historyEntry.previousInCheck[0];
+            inCheck[1] = historyEntry.previousInCheck[1];
+            moveHistory.pop_back();
+            return true;
+        }
+
         const Move move = historyEntry.move;
 
         const int fromSquare = move.startSquare();
@@ -400,12 +414,39 @@ namespace Chess {
         enPas = historyEntry.previousEnPas;
         fiftyMove = historyEntry.previousFiftyMove;
         castleRights = historyEntry.previousCastleRights;
+        inCheck[0] = historyEntry.previousInCheck[0];
+        inCheck[1] = historyEntry.previousInCheck[1];
         hisPly--;
 
         posKey = historyEntry.previousPosKey;
         moveHistory.pop_back();
 
         return true;
+    }
+
+    void BoardState::makeNullMove() {
+        MoveHistoryEntry historyEntry;
+        historyEntry.isNullMove = true;
+        historyEntry.previousSide = side;
+        historyEntry.previousEnPas = enPas;
+        historyEntry.previousPosKey = posKey;
+        historyEntry.previousInCheck[0] = inCheck[0];
+        historyEntry.previousInCheck[1] = inCheck[1];
+
+        if (enPas >= 0 && enPas < 64) {
+            const int epFile = BoardRepresentation::FileIndex(enPas);
+            posKey ^= zobristKeys.getPieceKey(0, epFile);
+        }
+        enPas = -1;
+
+        side ^= 1;
+        posKey ^= zobristKeys.getSideKey();
+
+        moveHistory.push_back(historyEntry);
+    }
+
+    bool BoardState::unmakeNullMove() {
+        return unmakeMove();
     }
 
     uint64_t BoardState::generatePosKey() const {
@@ -549,6 +590,18 @@ namespace Chess {
 
         return !hasMatingMaterial(whiteBishops, whiteKnights)
             && !hasMatingMaterial(blackBishops, blackKnights);
+    }
+
+    bool BoardState::hasNonPawnMaterial(int color) const {
+        const int knights = popCount(pieceBoards[color][PIECE_KNIGHT]);
+        const int bishops = popCount(pieceBoards[color][PIECE_BISHOP]);
+        const int rooks   = popCount(pieceBoards[color][PIECE_ROOK]);
+        const int queens  = popCount(pieceBoards[color][PIECE_QUEEN]);
+
+        if (knights + bishops + rooks + queens != 0) {
+            return true;
+        }
+        return false;
     }
 
     void BoardState::printBoardState() {

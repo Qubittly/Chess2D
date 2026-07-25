@@ -1,5 +1,4 @@
 #include <cstddef>
-#include <numeric>
 #include <cstdint>
 #include <algorithm>
 #include <limits>

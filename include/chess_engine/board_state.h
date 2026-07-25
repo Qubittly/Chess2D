@@ -53,11 +53,12 @@ namespace Chess {
         std::array<int, BRD_SQ_NUM> mailbox{};
 
         // Game state
-        int side = COLOR_WHITE;              // Current side to move
-        int enPas = -1;                      // En passant target square (-1 if none)
-        int fiftyMove = 0;                   // Half-move clock for 50-move rule
-        int hisPly = 0;                      // Full move counter
-        int castleRights = 0;                // Bitmask of castling rights
+        int side = COLOR_WHITE;                       // Current side to move
+        int enPas = -1;                               // En passant target square (-1 if none)
+        int fiftyMove = 0;                            // Half-move clock for 50-move rule
+        int hisPly = 0;                               // Full move counter
+        int castleRights = 0;                         // Bitmask of castling rights
+        bool inCheck[2] = {false, false};     // Check states for each side
 
         // Game history - stores complete move information for undo
         // Each entry contains: move + game state before move
@@ -71,6 +72,8 @@ namespace Chess {
             int previousFiftyMove = 0;
             int previousCastleRights = 0;
             uint64_t previousPosKey = 0ULL;
+            bool previousInCheck[2] = {false, false};
+            bool isNullMove = false;
         };
         std::vector<MoveHistoryEntry> moveHistory;
 
@@ -212,6 +215,18 @@ namespace Chess {
         bool unmakeMove();
 
         /*
+         * Make a null move (skip turn)
+         * Switches side, clears en passant, saves state for undo
+         */
+        void makeNullMove();
+
+        /*
+         * Unmake the last null move
+         * Restores side, en passant, and other state from history
+         */
+        bool unmakeNullMove();
+
+        /*
          * Generate position hash key using Zobrist hashing
          * XORs together piece keys, side key, castling key, and en passant key
          * Uses the centralized ZobristKeys class for key management
@@ -271,9 +286,18 @@ namespace Chess {
 
         Move getLastMove() const { return moveHistory.empty() ? Move::invalid() : moveHistory.back().move; }
 
+        bool getInCheck(int color) const {
+            return inCheck[color];
+        }
+
+        void setInCheck(int color, bool value) {
+            inCheck[color] = value;
+        }
+
         bool isRepetition() const;
         bool isDrawByFiftyMove() const { return fiftyMove >= 100; }
         bool isInsufficientMaterial() const;
+        bool hasNonPawnMaterial(int color) const;
 
         bool isWhiteToMove() const { return side == COLOR_WHITE; }
         bool isBlackToMove() const { return side == COLOR_BLACK; }

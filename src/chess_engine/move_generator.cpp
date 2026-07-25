@@ -33,6 +33,7 @@ namespace Chess {
         calculateOpponentAttackData();
         
         board.setAttackTable(opponentColour, opponentAttackMap);
+        board.setInCheck(friendlyColourIndex, inCheck);
         
         clearMoves();
         generateLegalMovesConstrained(board, genQuiet);

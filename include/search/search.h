@@ -257,7 +257,35 @@ private:
 			return ttScore;
 		}
 
+		bool isPvNode = (beta - alpha > 1);
+
 		gen.generateLegalMoves(board, true);
+		bool inCheck = gen.getInCheck();
+
+		const int staticEval = evaluation.Evaluate();
+
+		if (!inCheck
+			&& depth >= NMP_MIN_DEPTH
+			&& ply > 0
+			&& !isPvNode
+			&& board.hasNonPawnMaterial(board.getSide())
+			&& staticEval >= beta)
+		{
+			const int R = NMP_REDUCTION + depth / NMP_REDUCTION_DIVISOR;
+			board.makeNullMove();
+			const int nullScore = -NegaMax(-beta, -beta + 1, depth - 1 - R, ply + 1);
+			board.unmakeNullMove();
+
+			if (shouldStop()) return nullScore;
+
+			if (nullScore >= beta) {
+				TT_Table->storeEval(nullScore, depth, ply, LOWER, board);
+				return nullScore;
+			}
+		}
+
+		gen.generateLegalMoves(board, true);
+
 		std::vector<Move> moves;
 		moves.reserve(static_cast<std::size_t>(gen.getLegalMoveCount()));
 		for (int i = 0; i < gen.getLegalMoveCount(); ++i) {
@@ -352,7 +380,7 @@ private:
 		moves.reserve(static_cast<std::size_t>(gen.getLegalMoveCount()));
 		for (int i = 0; i < gen.getLegalMoveCount(); ++i) {
 			const Move move = gen.moveList[i];
-			if (inCheck || MoveOrderUtil::isCaptureMove(board, move)) {
+			if (inCheck || MoveOrderUtil::isCaptureMove(board, move) || move.isPromotion()) {
 				moves.push_back(move);
 			}
 		}
@@ -510,6 +538,10 @@ private:
 
 	static constexpr int CHECKMATE_VALUE = 100000;
 	static constexpr int DRAW_VALUE = 0;
+
+	static constexpr int NMP_MIN_DEPTH = 3;
+	static constexpr int NMP_REDUCTION = 3;
+	static constexpr int NMP_REDUCTION_DIVISOR = 6;
 };
 }  // namespace Chess
 #endif // SEARCH_H
