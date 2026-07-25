@@ -30,6 +30,19 @@
 
 namespace Chess {
 
+    /*
+     * Count the number of set bits (population count)
+     * 
+     * @param bb The bitboard to analyze
+     * @return The number of '1' bits in the bitboard
+     * 
+     * Use case: Count how many pieces of a type are on the board
+     * Time complexity: O(1) - hardware instruction
+     * 
+     * Example:
+     *   uint64_t pawns = 0x000000000000FF00ULL;  // 8 white pawns
+     *   int count = popCount(pawns);             // Returns 8
+     */
     inline int popCount(uint64_t bb) {
         #if defined(_MSC_VER)
                 return static_cast<int>(__popcnt64(bb));
@@ -42,6 +55,21 @@ namespace Chess {
         #endif
     }
 
+    /*
+     * Get the position of the Least Significant Bit (LSB)
+     * 
+     * @param bb The bitboard to analyze
+     * @return The bit position (0-63) of the first '1' bit, or 64 if empty
+     * 
+     * Use case: Find the first piece on a bitboard
+     * Time complexity: O(1) - hardware instruction
+     * 
+     * Example:
+     *   uint64_t bb = 0x0000000000000100ULL;  // Only bit 8 set
+     *   int square = getLSB(bb);              // Returns 8
+     * 
+     * Note: This is the first step in bitboard iteration
+     */
     inline int getLSB(uint64_t bb) {
         #if defined(_MSC_VER)
                 if (bb == 0) return 64;
