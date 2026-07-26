@@ -33,6 +33,8 @@ struct SearchSettings {
     int searchTime = 1000;  // in ms
     bool endlessSearch;
     bool abortSearch;
+	bool useNPM;
+	bool useLMR;
 };
 
 class Search {
@@ -52,6 +54,8 @@ public:
         s.searchTime = 1000;
         s.endlessSearch = false;
         s.abortSearch = false;
+		s.useNPM = true;
+		s.useLMR = true;
         return s;
     }
 
@@ -263,8 +267,9 @@ private:
 			depth >= NMP_MIN_DEPTH && 
 			ply > 0 && 
 			!isPvNode && 
-			board.hasNonPawnMaterial(board.getSide()) 
-			&& staticEval >= beta) 
+			board.hasNonPawnMaterial(board.getSide()) && 
+			staticEval >= beta &&
+			settings.useNPM)
 		{
             const int R = NMP_REDUCTION + depth / NMP_REDUCTION_DIVISOR;
             board.makeNullMove();
@@ -280,6 +285,7 @@ private:
         }
 
         gen.generateLegalMoves(board, true);
+		inCheck = gen.getInCheck();
 
         std::vector<Move> moves;
         moves.reserve(static_cast<std::size_t>(gen.getLegalMoveCount()));
@@ -305,17 +311,43 @@ private:
         const int originalAlpha = alpha;
         Move localBestMove = Move::invalid();
         bool isFirstMove = true;
+		int moveCount = 0;
 
         for (const Move& move : orderedMoves) {
+			moveCount++;
             board.makeMove(move);
             int score = 0;
+            const int mover = board.getSide() ^ 1;
+            const int responderKingSq = board.getPieceList(board.getSide(), PIECE_KING)[0];
+            const bool givesCheck = gen.isSquareAttackedByColor(responderKingSq, mover, board);
             if (isFirstMove) {
                 score = -NegaMax(-beta, -alpha, depth - 1, ply + 1);
             } else {
-                // PVS: null-window search first, then re-search if it improves alpha.
-                score = -NegaMax(-(alpha + 1), -alpha, depth - 1, ply + 1);
+				int newDepth = depth - 1;
+				// LMR: Late move reduction saves on search by reducing moves orederd closer to the end
+				if (moveCount >= LMR_MOVE_THRESHOLD &&
+					depth >= LMR_MIN_DEPTH &&
+					!inCheck &&
+					!MoveOrderUtil::isCaptureMove(board, move) &&
+					!move.isPromotion() &&
+					!givesCheck &&
+					settings.useLMR)
+				{
+					int reduction = std::log(depth) * std::log(moveCount) / 3; // Using log is good from what i saw online
+					int reducedDepth = std::max(newDepth - reduction, 1);
+					score = -NegaMax(-(alpha + 1), -alpha, reducedDepth, ply + 1);
+
+					if (score > alpha) {
+						// reduced search says this might actually be good -> do full search
+						score = -NegaMax(-(alpha + 1), -alpha, newDepth, ply + 1);
+					} 
+				} else {
+					// null-window search
+					score = -NegaMax(-(alpha + 1), -alpha, newDepth, ply + 1);
+				}
+                // PVS: only re-search full window if the (possibly LMR-confirmed) score threatens beta
                 if (score > alpha && score < beta) {
-                    score = -NegaMax(-beta, -alpha, depth - 1, ply + 1);
+                    score = -NegaMax(-beta, -alpha, newDepth, ply + 1);
                 }
             }
             board.unmakeMove();
@@ -524,6 +556,9 @@ private:
     static constexpr int NMP_MIN_DEPTH = 3;
     static constexpr int NMP_REDUCTION = 3;
     static constexpr int NMP_REDUCTION_DIVISOR = 6;
+
+	static constexpr int LMR_MIN_DEPTH = 3;
+	static constexpr int LMR_MOVE_THRESHOLD = 3;
 };
 }  // namespace Chess
 #endif  // SEARCH_H

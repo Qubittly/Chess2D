@@ -200,12 +200,6 @@ public:
     }
 
 private:
-    using KillerTable = std::array<std::array<Move, 2>, MAX_PLY>;
-    using HistoryTable = std::array<std::array<std::array<int, 64>, 64>, 2>;  // [side][from][to]
-
-    inline static KillerTable killers_{};
-    inline static HistoryTable history_{};
-
     static void sideToMoveSwap(int& side, int& opponent) {
         const int tmp = side;
         side = opponent;
@@ -275,6 +269,12 @@ private:
 
         return false;
     }
+
+    using KillerTable = std::array<std::array<Move, 2>, MAX_PLY>;
+    using HistoryTable = std::array<std::array<std::array<int, 64>, 64>, 2>;  // [side][from][to]
+
+    inline static KillerTable killers_{};
+    inline static HistoryTable history_{};
 };
 }  // namespace Chess
 #endif  // MOVE_ORDER_UTIL_H

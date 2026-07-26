@@ -88,6 +88,8 @@ public:
     // Query whether the side to move is in check (valid after generateLegalMoves)
     bool getInCheck() const;
 
+    bool isSquareAttackedByColor(int square, int opponentColor, const BoardState& testBoard);
+
 private:
     const BoardState* board = nullptr;
 
@@ -184,8 +186,6 @@ private:
     bool squareIsAttacked(int square);
 
     bool inCheckAfterEnPassant(int startSquare, int targetSquare, int epCapturedPawnSquare);
-
-    bool isSquareAttackedByColor(int square, int opponentColor, const BoardState& testBoard);
 
     void addQuietMove(const BoardState& board, int fromSquare, int toSquare);
 

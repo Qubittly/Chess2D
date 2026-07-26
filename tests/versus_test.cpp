@@ -264,7 +264,7 @@ int main(int argc, char** argv) {
             std::cerr << "[WARN] SDL_Init failed, continuing without GUI: " << SDL_GetError() << '\n';
             renderGui = false;
         } else {
-            window = SDL_CreateWindow("Chess2D Versus Test", 700, 700, SDL_WINDOW_RESIZABLE);
+            window = SDL_CreateWindow("Chess2D Versus Test", 600, 600, SDL_WINDOW_RESIZABLE);
             if (!window) {
                 std::cerr << "[WARN] SDL_CreateWindow failed, continuing without GUI: " << SDL_GetError() << '\n';
                 renderGui = false;
