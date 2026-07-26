@@ -333,7 +333,7 @@ private:
 					!givesCheck &&
 					settings.useLMR)
 				{
-					int reduction = std::log(depth) * std::log(moveCount) / 3; // Using log is good from what i saw online
+					int reduction = std::log(depth) * std::log(moveCount) / LMR_DIVISOR; // Using log is good from what i saw online
 					int reducedDepth = std::max(newDepth - reduction, 1);
 					score = -NegaMax(-(alpha + 1), -alpha, reducedDepth, ply + 1);
 
@@ -559,6 +559,7 @@ private:
 
 	static constexpr int LMR_MIN_DEPTH = 3;
 	static constexpr int LMR_MOVE_THRESHOLD = 3;
+	static constexpr int LMR_DIVISOR = 3;
 };
 }  // namespace Chess
 #endif  // SEARCH_H
